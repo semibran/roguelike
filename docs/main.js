@@ -1,20 +1,48 @@
 (function e(t,n,r){function s(o,u){if(!n[o]){if(!t[o]){var a=typeof require=="function"&&require;if(!u&&a)return a(o,!0);if(i)return i(o,!0);throw new Error("Cannot find module '"+o+"'")}var f=n[o]={exports:{}};t[o][0].call(f.exports,function(e){var n=t[o][1][e];return s(n?n:e)},f,f.exports,e,t,n,r)}return n[o].exports}var i=typeof require=="function"&&require;for(var o=0;o<r.length;o++)s(r[o]);return s})({1:[function(require,module,exports){
-module.exports = function(viewport_size){
+module.exports = function(viewport_size) {
   return {
     template: "<div class='grid' :style='{ fontSize: \"calc(100vmin / " + viewport_size + ")\" }'>" +
                 "<div class='overlay'></div>" +
-                "<div class='tile' v-for='tile in view' v-html='tile.sprite' :class='{ [tile.type]: true }' :style='{ color: tile.color }'></div>" +
+                "<div class='tile' v-for='tile in view' v-html='tile.sprite' v-bind:title='[tile.id]' :class='[tile.type]' :style='{ color: tile.color }'></div>" +
               "</div>",
     props: ['view']
   }
 }
 
 },{}],2:[function(require,module,exports){
+module.exports = {
+  template: "<ul class='log'>" +
+              "<li class='log-item' v-for='item in data'>{{ item }}</li>" +
+            "</ul>",
+  props: ['data']
+}
+
+},{}],3:[function(require,module,exports){
+module.exports = {
+  template: "<ul class='touchpad buttons'>" +
+              "<li class='button-wrap'>" +
+                "<button class='button' id='ArrowUp'></button>" +
+              "</li>" +
+              "<li class='button-wrap'>" +
+                "<button class='button' id='ArrowRight'></button>" +
+              "</li>" +
+              "<li class='button-wrap'>" +
+                "<button class='button' id='ArrowLeft'></button>" +
+              "</li>" +
+              "<li class='button-wrap'>" +
+                "<button class='button' id='ArrowDown'></button>" +
+              "</li>" +
+            "</ul>"
+}
+
+},{}],4:[function(require,module,exports){
 // Collaboration with Dustin Dowell
 
-var omniscient = false // ignore raycasting?
-var scrolling  = true
-var viewport_size = 9
+var debug = false
+var omniscient = debug // ignore raycasting?
+var scrolling  = !debug
+var viewport_size = debug ? 25 : 9
+var mobile = 'ontouchstart' in window || navigator.maxTouchPoints
 
 var FOV     = require('./utils/fov')
 var MAP     = require('./utils/map')
@@ -22,18 +50,22 @@ var PRESETS = require('./utils/presets')
 var POS     = require('./utils/pos')
 var RECT    = require('./utils/rect')
 var RANDOM  = require('./utils/random')
+var ELEMENT = require('./utils/element')
 
 new Vue({
   el: '#app',
   data: {
-    map: null,
-    map_size: 25,
     viewport_size: viewport_size,
-    player_pos: [12, 12],
-    player_vision: Math.floor(9 / 2),
-    player_known: []
+    map_size: 25,
+    map: null,
+    player: null,
+    log_data: [],
+    mobile: mobile
   },
   computed: {
+    log_view: function() {
+      return this.log_data.slice(-5).reverse()
+    },
     view: function () {
       var viewport_half = Math.floor(this.viewport_size / 2)
       var viewport_cntr = [viewport_half, viewport_half]
@@ -46,51 +78,50 @@ new Vue({
         this.map = this.create_map()
       }
 
-      focus = scrolling ? this.player_pos : map_cntr
+      focus = scrolling ? this.player.pos : map_cntr
 
       if (!omniscient) {
-        this.loop_through_tiles(this.player_known, function(tile) { // Clear previously visible tiles
+        this.loop_through_tiles(this.player.visible, function(tile) { // Clear previously visible tiles
           tile.visible = false
         })
-
-        this.player_known = FOV.get(this.player_pos, this.player_vision, this.map, this.map_size) // Get new tiles
-
-        this.loop_through_tiles(this.player_known, function(tile) { // Display visible tiles
+        this.player.visible = FOV.get(this.player.pos, this.player.vision, this.map, this.map_size) // Get new tiles
+        this.loop_through_tiles(this.player.visible, function(tile) { // Display visible tiles
           tile.visible = true
         })
       }
 
-      // console.log(player_pos)
-      // console.log(this.flatten_map(map, map_size))
-
       map = this.map_viewport(focus, this.map, this.map_size, this.viewport_size)
 
-      map[POS.to_index(viewport_cntr, this.viewport_size)] = {
+      var player_pos = viewport_cntr
+      if (!scrolling)
+        player_pos = this.player.pos
+      map[POS.to_index(player_pos, this.viewport_size)] = {
         sprite: '@',
         color: 'white',
-        type: 'player'
+        type: 'player',
+        id: 'Hey there!'
       }
 
       return map
     }
   },
   methods: {
+    log: function(message) {
+      this.log_data.push(message)
+    },
     create_map: function() {
-      var data = MAP.generate_map('dungeon', this.map_size)
+      var data = MAP.generate_map(RANDOM.choose(['dungeon', 'maze']), this.map_size)
       var map = data.map
       if (data.spawn)
-        this.player_pos = data.spawn
-      if (data.exit) {
-        map[POS.to_index(data.exit, this.map_size)] = PRESETS.get('exit')
-      }
+        this.player = ELEMENT.create({ vision: Math.floor(viewport_size / 2) })(data.spawn, map)
       return map
     },
     change_floor: function() {
       this.map = this.create_map()
     },
     move_player: function (direction) {
-      var tgt_x = this.player_pos[0] + direction[0]
-      var tgt_y = this.player_pos[1] + direction[1]
+      var tgt_x = this.player.pos[0] + direction[0]
+      var tgt_y = this.player.pos[1] + direction[1]
       var tgt_pos = [tgt_x, tgt_y]
       var tgt_index
       var tgt_tile
@@ -100,12 +131,16 @@ new Vue({
         tgt_index = POS.to_index(tgt_pos, this.map_size)
         tgt_tile = this.map[tgt_index]
         if (tgt_tile.walkable) {
-          this.player_pos = tgt_pos
+          this.player.pos = tgt_pos
+          if (tgt_tile.exit) {
+            this.log("It's the stairs! Press . to descend.")
+          }
           return true
         }
         if (tgt_tile.contact) {
+          this.log('You open the door.')
           this.map[tgt_index] = PRESETS.get(tgt_tile.contact)
-          this.player_pos = POS.clone(this.player_pos) // Force Vue refresh
+          this.player.pos = POS.clone(this.player.pos) // Force Vue refresh
         }
       }
       return false
@@ -156,6 +191,7 @@ new Vue({
               type: tile.type
             }
           }
+          data.id = '(' + new_x + ', ' + new_y + ')'
           // data.id = POS.to_index([new_x, new_y], map_size)
           viewport.push(data)
           j++
@@ -171,13 +207,17 @@ new Vue({
     var key_pressed = {}
     var key_released = {}
     var movement_keys = ['KeyA', 'KeyW', 'KeyD', 'KeyS', 'ArrowLeft', 'ArrowUp', 'ArrowRight', 'ArrowDown', 'Period']
+    this.log('Can you find the exit?')
     function handle_key(event) {
       var is_key_down = event.type === 'keydown'
       var code = event.code
       if (is_key_down) {
         if (!key_released[code]) {
+          var first = !key_pressed[code]
           key_pressed[code] = true
-          loop()
+          if (first) {
+            loop()
+          }
         }
       } else {
         key_pressed[code] = false
@@ -192,7 +232,45 @@ new Vue({
     }
     window.addEventListener('keydown', handle_key)
     window.addEventListener('keyup',   handle_key)
+
+    buttons_pressed = []
+
+    function button_down(e) {
+      var button = this
+      button.classList.add('pressed')
+      buttons_pressed.push(button)
+      handle_key({
+        code: button.id,
+        type: 'keydown'
+      })
+    }
+    function button_up(e) {
+      if (buttons_pressed.length) {
+        buttons_pressed.some(function(button) {
+          button.classList.remove('pressed')
+          handle_key({
+            code: button.id,
+            type: 'keyup'
+          })
+        })
+        buttons_pressed = []
+      }
+    }
+
+    var buttons = Array.prototype.slice.call(document.querySelectorAll('.touchpad .button'))
+    buttons.some(function(button) {
+      if (mobile) {
+        button.addEventListener('touchstart', button_down);
+        window.addEventListener('touchend',   button_up);
+      } else {
+        button.addEventListener('mousedown',  button_down);
+        window.addEventListener('mouseup',    button_up);
+      }
+    })
+
+    var timeout
     function loop() {
+      window.clearTimeout(timeout)
       var dir_x = 0
       var dir_y = 0
       var moved, code
@@ -207,11 +285,12 @@ new Vue({
       if (key_pressed.KeyD || key_pressed.ArrowRight) dir_x++
       if (key_pressed.KeyS || key_pressed.ArrowDown)  dir_y++
       if (key_pressed.Period) {
-        var index = POS.to_index(that.player_pos, that.map_size)
+        var index = POS.to_index(that.player.pos, that.map_size)
         var tile = that.map[index]
         if (tile.exit) {
           release_keys(keys)
           that.change_floor()
+          that.log('You descend the staircase.')
           return
         }
       }
@@ -221,15 +300,45 @@ new Vue({
           release_keys(keys)
         }
       }
-      // window.requestAnimationFrame(loop)
+      timeout = window.setTimeout(loop, 1000 * .2)
     }
+    loop()
   },
   components: {
-    game: require('./components/game')(viewport_size)
+    game:     require('./components/game')(viewport_size),
+    log:      require('./components/log'),
+    touchpad: require('./components/touchpad')
   }
 })
 
-},{"./components/game":1,"./utils/fov":3,"./utils/map":4,"./utils/pos":5,"./utils/presets":6,"./utils/random":7,"./utils/rect":8}],3:[function(require,module,exports){
+},{"./components/game":1,"./components/log":2,"./components/touchpad":3,"./utils/element":5,"./utils/fov":6,"./utils/map":7,"./utils/pos":8,"./utils/presets":9,"./utils/random":10,"./utils/rect":11}],5:[function(require,module,exports){
+module.exports = (function(){
+  var POS = require('./pos')
+
+  function create(attributes) {
+    var element = {
+      visible: []
+    }
+    for (var attribute in attributes) {
+      element[attribute] = attributes[attribute]
+    }
+    return function create(pos) {
+      element.pos = pos
+      return element
+    }
+  }
+
+  function move(element, direction) {
+    var tgt = POS.add(element.pos, direction)
+  }
+
+  return {
+    create: create,
+    move: move
+  }
+}())
+
+},{"./pos":8}],6:[function(require,module,exports){
 module.exports = (function() {
 
   var POS = require('./pos')
@@ -333,7 +442,7 @@ module.exports = (function() {
 
 }())
 
-},{"./pos":5}],4:[function(require,module,exports){
+},{"./pos":8}],7:[function(require,module,exports){
 module.exports = (function() {
   // Directions
   var LEFT  = [-1, 0]
@@ -583,279 +692,339 @@ module.exports = (function() {
     //      i.  Backtrack!
     //  4. Return map
     //
-    generate_maze: function(size) {
-      console.log('Generating maze of size',size)
-      var map = []
-      var i = 0
-      var x, y
-      var area = size * size
-      var replica = []
-      var node, nodes = []
-      var center = Math.floor(size / 2)
-      while(i < area) { // Fill map with walls
-        var pos = POS.to_pos(i, size)
-        var type, tile
-        tile = '#'
-        map.push(tile)
-        replica.push(pos)
-        if ((pos[0] - 1) % 2 == 0 && (pos[1] - 1) % 2 == 0)
-          nodes.push(pos)
-        i++
-      }
-      var start = RANDOM.choose(nodes)
-      var stack = [start]
-      var tower = [start]
-      var is_visited = {}
-      var current
-      var dist, dig
-      var unvisited, neighbors, neighbor
-      var ends = []
-      var steps = 0
-      while (stack.length) {
-        current = stack.pop()
-        is_visited[current] = true // Mark the current tile
-        neighbors = MAP.get_neighbors(current, replica, size, 2)  // Get adjacent tiles (with a step of 2)
-        unvisited = _.filter(neighbors, function(neighbor) {   // Filter out visited tiles
-          return !is_visited[neighbor]
-        })
-        if (unvisited.length) {                                // If unvisited neighbors exist...
-          neighbor = RANDOM.choose(unvisited)              // Get random valid neighbor
-          dist = [neighbor[0] - current[0], neighbor[1] - current[1]]  // Get initial distance
-          dig = POS.normalize(dist)             // Get dig step
-          while (!POS.is_equal(current, neighbor)) { // While current !== target...
-            current[0] += dig[0]                         // Move towards target
-            current[1] += dig[1]
-            map[POS.to_index(current, size)] = '.'   // Change current pos to floor tile
-          }
-          stack.push(neighbor)
-          tower.push(neighbor)
-          steps ++
-        } else {
-          ends.push(current)
-          var top = tower.pop() // Backtrack
-          top && stack.push(top)
-          steps --
+    create_maze_generator: function(size) {
+      return function generate_maze(raw) {
+        console.log('Generating maze of size',size)
+        var map = []
+        var i = 0
+        var x, y
+        var area = size * size
+        var replica = []
+        var node, nodes = []
+        var center = Math.floor(size / 2)
+        while(i < area) { // Fill map with walls
+          var pos = POS.to_pos(i, size)
+          var type, tile
+          tile = '#'
+          map.push(tile)
+          replica.push(pos)
+          if ((pos[0] - 1) % 2 == 0 && (pos[1] - 1) % 2 == 0)
+            nodes.push(pos)
+          i++
         }
-      }
-      console.log('Maze successfully created from',start)
-      map[start] = '.' // Dig at start
-      return map
-    },
-    generate_dungeon: function(map_size) {
-      var maze = MAP.generate_maze(map_size)
-      var map = MAP.generate_blank_map(map_size)
-      var tile_costs = {
-        '.': 0,
-        '#': 10000,
-        edge: 10000,
-        corner: Infinity
-      }
-      var find_path = null
-      var room, rooms = []
-      var i = 0
-      var tile, index, ratio
-      var linked = {}
 
-      function link_rooms(room_a, room_b) {
-        if (!linked[room_a]) linked[room_a] = {}
-        if (!linked[room_b]) linked[room_b] = {}
-        linked[room_a][room_b] = true
-        linked[room_b][room_a] = true
-        // function on_maze(pos) {
-        //   return MAP.get_at(pos, maze, map_size) === '.'
-        // }
-        // var tile_costs = {
-        //   '.': 0,
-        //   '#': Infinity
-        // }
-        // var find_path = MAP.create_pathfinder(maze, map_size, tile_costs)
-        //
-        // var center_a = RECT.get_center(room_a)
-        // var center_b = RECT.get_center(room_b)
-        // var path = find_path(center_a, center_b)
-        // if (path) {
-        //   path.some(function(pos) {
-        //     var index = POS.to_index(pos, map_size)
-        //     var char = is_pos_edge[pos] ? '+' : '.'
-        //     map[index] = char
-        //   })
-        // }
-
-      }
-      function dig_room(rect) {
-        RECT.get_inside(rect).some(function(pos) {
-          var index = POS.to_index(pos, map_size)
+        function poke() {
+          var x, y, pos, index
+          do {
+            x = RANDOM.get((size-2)/2)*2+1
+            y = RANDOM.get((size-2)/2)*2+2
+            pos = RANDOM.choose() ? [x, y] : [y, x]
+            index = POS.to_index(pos, size)
+          } while (map[index] !== '#')
+          console.log(pos)
           map[index] = '.'
-        })
-      }
-      function create_room(rects, rect) {
-        var i, j, index
-        var valid
-        var other
-        var attempts
-        var get_room = MAP.create_room_generator(3, 7, map_size)
-        if (!rects) {
-          rects = []
         }
-        attempts = []
-        while (!rect && attempts < 3) {
-          rect = get_room()
-          if (rects.length) {
-            i = rects.length
-            valid = true
-            while (i --) {
-              other = rects[i]
-              if (RECT.is_intersecting(rect, other)) {
-                valid = false
-                break
-              }
+
+        var start = RANDOM.choose(nodes)
+        var spawn = POS.clone(start)
+        var stack = [start]
+        var tower = [start]
+        var is_visited = {}
+        var current
+        var dist, dig
+        var unvisited, neighbors, neighbor
+        var ends = []
+        var steps = 0
+        console.log('from',start)
+        while (stack.length) {
+          current = stack.pop()
+          is_visited[current] = true // Mark the current tile
+          neighbors = MAP.get_neighbors(current, replica, size, 2)  // Get adjacent tiles (with a step of 2)
+          unvisited = null
+          unvisited = _.filter(neighbors, function(neighbor) {   // Filter out visited tiles
+            return !is_visited[neighbor]
+          })
+          if (unvisited.length) {                                // If unvisited neighbors exist...
+            neighbor = RANDOM.choose(unvisited)              // Get random valid neighbor
+            dist = [neighbor[0] - current[0], neighbor[1] - current[1]]  // Get initial distance
+            dig = POS.normalize(dist)             // Get dig step
+            map[POS.to_index(current, size)] = '.'
+            while (!POS.is_equal(current, neighbor)) { // While current !== target...
+              current[0] += dig[0]                         // Move towards target
+              current[1] += dig[1]
+              map[POS.to_index(current, size)] = '.'
             }
-            if (!valid)
-              rect = null
+            stack.push(neighbor)
+            tower.push(neighbor)
+            steps++
+          } else {
+            ends.push({
+              pos: current,
+              steps: steps
+            })
+            var top = tower.pop() // Backtrack
+            top && stack.push(top)
+            steps--
           }
-          attempts ++
         }
-        return rect
-      }
-      function create_rooms() {
-        console.log('Creating rooms...')
-        var ratio, room, rooms = []
-        do {
-          // ratio = MAP.get_map_ratio(map)
-          if (room)
-            rooms.push(room)
-          if (!(rooms.length < map_size / 4 && /*ratio < .2 && */i < map_size))
-            break
-          room = create_room(rooms)
-          i ++
-        } while (1)
-        return rooms
-      }
-
-      // i = maze.length
-      // while (i--) {
-      //   if (maze[i] === '.')
-      //     map[i] = '!'
-      // }
-
-      rooms = create_rooms()
-      rooms.some(function(room) {
-        dig_room(room)
-      })
-
-      console.log('Created rooms',rooms)
-
-      console.log('Caching room borders...')
-
-      var room_edges    = {}
-      var room_corners  = {}
-      var room_centers  = {}
-      var room_edge_list = []
-      var room_corner_list = []
-      var room_center_list = []
-      var is_pos_edge   = {}
-      var is_pos_corner = {}
-      var is_pos_center = {}
-      rooms.some(function(room) {
-        var edges   = RECT.get_edges(room)
-        var center  = RECT.get_center(room)
-        var corners = RECT.get_corners(room)
-        edges.some(function(tile) {
-          is_pos_edge[tile] = true
-          room_edge_list.push(tile)
-          tile_costs[tile] = tile_costs.edge
+        ends.shift()
+        ends.sort(function(a, b) {
+          return b.steps - a.steps
         })
-        corners.some(function(tile) {
-          is_pos_corner[tile] = true
-          room_corner_list.push(tile)
-          tile_costs[tile] = tile_costs.corner
+        map[POS.to_index(ends.shift().pos, size)] = '>'
+        console.log('Exit is at',ends[0].pos)
+        i = 2
+        while (i--) poke()
+        positions = []
+        ends.some(function(obj) {
+          positions.push(obj.pos)
         })
-        room_center_list.push(center)
-        room_edges[room] = edges
-        room_corners[room] = corners
-        room_centers[room] = center
-      })
+        return raw ? map : {
+          spawn: spawn,
+          enemies: positions,
+          map: MAP.get_converted_map(map)
+        }
+      }
+    },
+    create_dungeon_generator: function(map_size) {
+      return function generate_dungeon(raw) {
+        var maze = MAP.create_maze_generator(map_size)(true)
+        var map = MAP.generate_blank_map(map_size)
+        var tile_costs = {
+          '.': 0,
+          '#': 1000,
+          edge: 2000,
+          corner: Infinity
+        }
+        var find_path = null
+        var room, rooms = []
+        var i = 0
+        var tile, index, ratio
+        var linked = {}
 
-      find_path = MAP.create_pathfinder(maze, map_size, tile_costs)
-
-      console.log('Connecting rooms...')
-
-      // var is_connected = {}
-      // var connections = 0
-      // var room_a, room_b
-      // var i = 0
-      // while (connections < rooms.length / 4) {
-      //
-      //   do {
-      //     room_a = rooms[RANDOM.get(rooms.length)]
-      //   } while (is_connected[room_a])
-      //   is_connected[room_a] = true
-      //
-      //   do {
-      //     room_b = rooms[RANDOM.get(rooms.length)]
-      //     i ++
-      //   } while (i < rooms.length && (RECT.is_equal(room_a, room_b) || is_connected[room_b]))
-      //   is_connected[room_b] = true
-      //
-      //   connections++
-      //
-      //   link_rooms(room_a, room_b)
-      // }
-
-      var evaluated = {}
-      rooms.some(function(room_a) {
-        if (!evaluated[room_a])
-          evaluated[room_a] = {}
-        var edges_a = room_edges[room_a]
-        rooms.some(function(room_b) {
-          if (!evaluated[room_b])
-            evaluated[room_b] = {}
-          if (!RECT.is_equal(room_a, room_b) && !evaluated[room_a][room_b] && !evaluated[room_b][room_a]) {
-            var edges_b = room_edges[room_b]
-            var seen = {}
-            var shared_edges = []
-            edges_a.some(function(edge) {
-              seen[edge] = true
-            })
-            edges_b.some(function(edge) {
-              if (seen[edge]) {
-                shared_edges.push(edge)
+        function link_rooms(room_a, room_b) {
+          if (!linked[room_a]) linked[room_a] = {}
+          if (!linked[room_b]) linked[room_b] = {}
+          linked[room_a][room_b] = true
+          linked[room_b][room_a] = true
+        }
+        function dig_room(rect) {
+          RECT.get_inside(rect).some(function(pos) {
+            var index = POS.to_index(pos, map_size)
+            map[index] = '.'
+          })
+        }
+        function create_room(rects, rect) {
+          var i, j, index
+          var valid
+          var other
+          var attempts
+          var get_room = MAP.create_room_generator(3, 7, map_size)
+          if (!rects) {
+            rects = []
+          }
+          attempts = []
+          while (!rect && attempts < 3) {
+            rect = get_room()
+            if (rects.length) {
+              i = rects.length
+              valid = true
+              while (i --) {
+                other = rects[i]
+                if (RECT.is_intersecting(rect, other)) {
+                  valid = false
+                  break
+                }
               }
-            })
-            var l = shared_edges.length
-            if (l) {
-              if (l == 1) {
-                var index = POS.to_index(shared_edges[0], map_size)
-                map[index] = '+'
-                link_rooms(room_a, room_b)
-              } else {
-                // if (l === room_a[2] - room_a[0] + 1 ||
-                //     l === room_a[3] - room_a[1] + 1 ||
-                //     l === room_b[2] - room_b[0] + 1 ||
-                //     l === room_b[3] - room_b[1] + 1 ) {
-                //   shared_edges.some(function(edge) {
-                //     var index = POS.to_index(edge, map_size)
-                //     map[index] = '+'
-                //   })
-                // }
-              }
+              if (!valid)
+                rect = null
             }
-            evaluated[room_a][room_b] = true
-            evaluated[room_b][room_a] = true
+            attempts ++
+          }
+          return rect
+        }
+        function create_rooms() {
+          console.log('Creating rooms...')
+          var ratio, room, rooms = []
+          do {
+            // ratio = MAP.get_map_ratio(map)
+            if (room)
+              rooms.push(room)
+            if (!(rooms.length < map_size / 4 && /*ratio < .2 && */i < map_size))
+              break
+            room = create_room(rooms)
+            i ++
+          } while (1)
+          return rooms
+        }
+
+        // i = maze.length
+        // while (i--) {
+        //   if (maze[i] === '.')
+        //     map[i] = '!'
+        // }
+
+        rooms = create_rooms()
+        rooms.some(function(room) {
+          dig_room(room)
+        })
+
+        console.log('Created rooms',rooms)
+
+        console.log('Caching room borders...')
+
+        var room_edges    = {}
+        var room_corners  = {}
+        var room_centers  = {}
+        var room_edge_list = []
+        var room_corner_list = []
+        var room_center_list = []
+        var is_pos_edge   = {}
+        var is_pos_corner = {}
+        var is_pos_center = {}
+        rooms.some(function(room) {
+          var edges   = RECT.get_edges(room)
+          var center  = RECT.get_center(room)
+          var corners = RECT.get_corners(room)
+          edges.some(function(tile) {
+            is_pos_edge[tile] = true
+            room_edge_list.push(tile)
+            tile_costs[tile] = tile_costs.edge
+          })
+          corners.some(function(tile) {
+            is_pos_corner[tile] = true
+            room_corner_list.push(tile)
+            tile_costs[tile] = tile_costs.corner
+          })
+          room_center_list.push(center)
+          room_edges[room] = edges
+          room_corners[room] = corners
+          room_centers[room] = center
+        })
+
+        find_path = MAP.create_pathfinder(maze, map_size, tile_costs)
+
+        console.log('Connecting rooms...')
+
+        var evaluated = {}
+        rooms.some(function(room_a) {
+          if (!evaluated[room_a])
+            evaluated[room_a] = {}
+          var edges_a = room_edges[room_a]
+          rooms.some(function(room_b) {
+            if (!evaluated[room_b])
+              evaluated[room_b] = {}
+            if (!RECT.is_equal(room_a, room_b) && !evaluated[room_a][room_b] && !evaluated[room_b][room_a]) {
+              var edges_b = room_edges[room_b]
+              var seen = {}
+              var shared_edges = []
+              edges_a.some(function(edge) {
+                seen[edge] = true
+              })
+              edges_b.some(function(edge) {
+                if (seen[edge]) {
+                  shared_edges.push(edge)
+                }
+              })
+              var l = shared_edges.length
+              if (l) {
+                if (l == 1) {
+                  var index = POS.to_index(shared_edges[0], map_size)
+                  map[index] = '+'
+                  link_rooms(room_a, room_b)
+                } else {
+                  // if (l === room_a[2] - room_a[0] + 1 ||
+                  //     l === room_a[3] - room_a[1] + 1 ||
+                  //     l === room_b[2] - room_b[0] + 1 ||
+                  //     l === room_b[3] - room_b[1] + 1 ) {
+                  //   shared_edges.some(function(edge) {
+                  //     var index = POS.to_index(edge, map_size)
+                  //     map[index] = '+'
+                  //   })
+                  // }
+                }
+              }
+              evaluated[room_a][room_b] = true
+              evaluated[room_b][room_a] = true
+            }
+          })
+        })
+
+        rooms.some(function(room) {
+          if (!linked[room]) {
+            console.log(room)
+            var inside = RECT.get_inside(room)
+            var center_a = room_centers[room]
+            var center_b = null
+            rooms.sort(function(room_a, room_b) {
+              return POS.get_manhattan_distance(center_a, room_centers[room_a]) - POS.get_manhattan_distance(center_a, room_centers[room_b])
+            })
+            center_b = room_centers[rooms[1]]
+            var path = find_path(center_a, center_b)
+            if (path) {
+             path.some(function(pos) {
+               var index = POS.to_index(pos, map_size)
+               var char = is_pos_edge[pos] ? '+' : '.'
+               map[index] = char
+             })
+             var index = POS.to_index(center_a, map_size)
+            //  map[index] = '!'
+             link_rooms(room, rooms[1])
+           } else {
+             console.log('rip, no path found :(')
+           }
           }
         })
-      })
 
-      rooms.some(function(room) {
-        if (!linked[room]) {
-          console.log(room)
+        console.log('Identifying islands...')
+
+        function get_islands() {
+          var marked = {}
+          var islands = []
+          rooms.some(function(room) {
+            var start = room_centers[room]
+            var island, current, stack, index, char
+            if (!marked[start]) {
+              island = {
+                room: room,
+                contents: []
+              }
+              stack = [start]
+              while (stack.length) {
+                current = stack.pop()
+                marked[current] = true
+                island.contents.push(current)
+                neighbors = MAP.get_neighbors(current, map, map_size)
+                neighbors.some(function(neighbor) {
+                  index = POS.to_index(neighbor, map_size)
+                  char = map[index]
+                  if (char !== '#' && !marked[neighbor])
+                    stack.push(neighbor)
+                })
+              }
+              islands.push(island)
+            }
+          })
+          return islands
+        }
+        var islands = get_islands()
+
+        console.log('Found',islands.length,'islands. Linking...')
+
+        islands.some(function(island) {
+          var room = island.room
+          // console.log(room)
           var inside = RECT.get_inside(room)
           var center_a = room_centers[room]
           var center_b = null
-          rooms.sort(function(room_a, room_b) {
+          var unrelated = _.filter(rooms, function(other) {
+            return !linked[other] || !linked[other][room] || !linked[room][other]
+          })
+          unrelated.sort(function(room_a, room_b) {
             return POS.get_manhattan_distance(center_a, room_centers[room_a]) - POS.get_manhattan_distance(center_a, room_centers[room_b])
           })
-          center_b = room_centers[rooms[1]]
+          var other = unrelated[1]
+          center_b = room_centers[other]
           var path = find_path(center_a, center_b)
           if (path) {
            path.some(function(pos) {
@@ -865,123 +1034,53 @@ module.exports = (function() {
            })
            var index = POS.to_index(center_a, map_size)
           //  map[index] = '!'
-           link_rooms(room, rooms[1])
-          }
-        }
-      })
+           link_rooms(room, other)
+         } else {
+           console.log('rip, no path found :(')
+         }
+        })
 
-      console.log('Identifying islands...')
+        console.log('Generation complete!')
 
-      function get_islands() {
-        var marked = {}
-        var islands = []
-        rooms.some(function(room) {
-          var start = room_centers[room]
-          var island, current, stack, index, char
-          if (!marked[start]) {
-            island = {
-              room: room,
-              contents: []
-            }
-            stack = [start]
-            while (stack.length) {
-              current = stack.pop()
-              marked[current] = true
-              island.contents.push(current)
-              neighbors = MAP.get_neighbors(current, map, map_size)
-              neighbors.some(function(neighbor) {
-                index = POS.to_index(neighbor, map_size)
-                char = map[index]
-                if (char !== '#' && !marked[neighbor])
-                  stack.push(neighbor)
+        var spawn = null
+        var exit = null
+        var centers = []
+        if (rooms.length) {
+          var spawn = RECT.get_center(rooms[0])
+
+          rooms.some(function(room, index) {
+            if (index) {
+              var center = RECT.get_center(room)
+              centers.push({
+                pos: center,
+                dist: POS.get_manhattan_distance(spawn, center)
               })
             }
-            islands.push(island)
-          }
-        })
-        return islands
-      }
-      var islands = get_islands()
+          })
 
-      console.log('Found',islands.length,'islands. Linking...')
-
-      islands.some(function(island) {
-        var room = island.room
-        // console.log(room)
-        var inside = RECT.get_inside(room)
-        var center_a = room_centers[room]
-        var center_b = null
-        var unrelated = _.filter(rooms, function(other) {
-          return !linked[other] || !linked[other][room] || !linked[room][other]
-        })
-        unrelated.sort(function(room_a, room_b) {
-          return POS.get_manhattan_distance(center_a, room_centers[room_a]) - POS.get_manhattan_distance(center_a, room_centers[room_b])
-        })
-        var other = unrelated[1]
-        center_b = room_centers[other]
-        var path = find_path(center_a, center_b)
-        if (path) {
-         path.some(function(pos) {
-           var index = POS.to_index(pos, map_size)
-           var char = is_pos_edge[pos] ? '+' : '.'
-           map[index] = char
-         })
-         var index = POS.to_index(center_a, map_size)
-        //  map[index] = '!'
-         link_rooms(room, other)
+          centers.sort(function(a, b) {
+            return b.dist - a.dist
+          })
+          var index = POS.to_index(centers[0].pos, map_size)
+          console.log(index)
+          map[index] = '>'
         }
-      })
 
-      console.log('Generation complete!')
+        var spawns = []
 
-      var spawn = null
-      var exit = null
-      var centers = []
-      if (rooms.length) {
-        var spawn = RECT.get_center(rooms[0])
-
-        rooms.some(function(room, index) {
-          if (index) {
-            var center = RECT.get_center(room)
-            centers.push({
-              pos: center,
-              dist: POS.get_manhattan_distance(spawn, center)
-            })
-          }
-        })
-
-        centers.sort(function(a, b) {
-          return b.dist - a.dist
-        })
-      }
-
-      return {
-        rooms: rooms,
-        spawn: spawn,
-        exit: centers.length ? centers[0].pos : null,
-        map: map
+        return raw ? map : {
+          rooms: rooms,
+          spawn: spawn,
+          map: MAP.get_converted_map(map)
+        }
       }
     },
     generate_map: function(type, size) {
       var method = {
-        'dungeon': MAP.generate_dungeon,
-        'maze':    MAP.generate_maze
+        'dungeon': MAP.create_dungeon_generator,
+        'maze':    MAP.create_maze_generator
       }[type] || null
-      var result = method ? method(size) : null
-      var map
-      if (!result) {
-        return null
-      } else {
-        var t = result.constructor.name
-        if (t === 'Array') {
-          result = {
-            map: result
-          }
-        }
-        result.map = MAP.get_converted_map(result.map)
-        return result
-      }
-
+      return method ? method(size)() : null
     }
   }
 
@@ -989,7 +1088,7 @@ module.exports = (function() {
 
 }())
 
-},{"./pos":5,"./presets":6,"./random":7,"./rect":8}],5:[function(require,module,exports){
+},{"./pos":8,"./presets":9,"./random":10,"./rect":11}],8:[function(require,module,exports){
 module.exports = {
   // ------- MANIPULATION
   get_manhattan_distance: function(a, b) {
@@ -1042,7 +1141,7 @@ module.exports = {
   }
 }
 
-},{}],6:[function(require,module,exports){
+},{}],9:[function(require,module,exports){
 module.exports = (function() {
   var data = {
     'wall': {
@@ -1121,7 +1220,7 @@ module.exports = (function() {
   return PRESETS
 }())
 
-},{}],7:[function(require,module,exports){
+},{}],10:[function(require,module,exports){
 module.exports = (function(){
   function get(min, max) {
     var a = arguments.length
@@ -1140,8 +1239,9 @@ module.exports = (function(){
   }
 
   function choose(array) {
-    if (!array.length)
-      return null
+    var a = arguments.length
+    if (a === 0 || !array.length)
+      array = [0, 1]
     return array[get(array.length)]
   }
 
@@ -1151,7 +1251,7 @@ module.exports = (function(){
   }
 }())
 
-},{}],8:[function(require,module,exports){
+},{}],11:[function(require,module,exports){
 module.exports = {
   is_equal: function(a, b) {
     return a[0] === b[0] && a[1] === b[1] && a[2] === b[2] && a[3] === b[3]
@@ -1218,4 +1318,4 @@ module.exports = {
   }
 }
 
-},{}]},{},[2])
+},{}]},{},[4])

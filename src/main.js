@@ -1,8 +1,10 @@
 // Collaboration with Dustin Dowell
 
-var omniscient = false // ignore raycasting?
-var scrolling  = true
-var viewport_size = 9
+var debug = false
+var omniscient = debug // ignore raycasting?
+var scrolling  = !debug
+var viewport_size = debug ? 25 : 9
+var mobile = 'ontouchstart' in window || navigator.maxTouchPoints
 
 var FOV     = require('./utils/fov')
 var MAP     = require('./utils/map')
@@ -10,18 +12,22 @@ var PRESETS = require('./utils/presets')
 var POS     = require('./utils/pos')
 var RECT    = require('./utils/rect')
 var RANDOM  = require('./utils/random')
+var ELEMENT = require('./utils/element')
 
 new Vue({
   el: '#app',
   data: {
-    map: null,
-    map_size: 25,
     viewport_size: viewport_size,
-    player_pos: [12, 12],
-    player_vision: Math.floor(9 / 2),
-    player_known: []
+    map_size: 25,
+    map: null,
+    player: null,
+    log_data: [],
+    mobile: mobile
   },
   computed: {
+    log_view: function() {
+      return this.log_data.slice(-5).reverse()
+    },
     view: function () {
       var viewport_half = Math.floor(this.viewport_size / 2)
       var viewport_cntr = [viewport_half, viewport_half]
@@ -34,51 +40,50 @@ new Vue({
         this.map = this.create_map()
       }
 
-      focus = scrolling ? this.player_pos : map_cntr
+      focus = scrolling ? this.player.pos : map_cntr
 
       if (!omniscient) {
-        this.loop_through_tiles(this.player_known, function(tile) { // Clear previously visible tiles
+        this.loop_through_tiles(this.player.visible, function(tile) { // Clear previously visible tiles
           tile.visible = false
         })
-
-        this.player_known = FOV.get(this.player_pos, this.player_vision, this.map, this.map_size) // Get new tiles
-
-        this.loop_through_tiles(this.player_known, function(tile) { // Display visible tiles
+        this.player.visible = FOV.get(this.player.pos, this.player.vision, this.map, this.map_size) // Get new tiles
+        this.loop_through_tiles(this.player.visible, function(tile) { // Display visible tiles
           tile.visible = true
         })
       }
 
-      // console.log(player_pos)
-      // console.log(this.flatten_map(map, map_size))
-
       map = this.map_viewport(focus, this.map, this.map_size, this.viewport_size)
 
-      map[POS.to_index(viewport_cntr, this.viewport_size)] = {
+      var player_pos = viewport_cntr
+      if (!scrolling)
+        player_pos = this.player.pos
+      map[POS.to_index(player_pos, this.viewport_size)] = {
         sprite: '@',
         color: 'white',
-        type: 'player'
+        type: 'player',
+        id: 'Hey there!'
       }
 
       return map
     }
   },
   methods: {
+    log: function(message) {
+      this.log_data.push(message)
+    },
     create_map: function() {
-      var data = MAP.generate_map('dungeon', this.map_size)
+      var data = MAP.generate_map(RANDOM.choose(['dungeon', 'maze']), this.map_size)
       var map = data.map
       if (data.spawn)
-        this.player_pos = data.spawn
-      if (data.exit) {
-        map[POS.to_index(data.exit, this.map_size)] = PRESETS.get('exit')
-      }
+        this.player = ELEMENT.create({ vision: Math.floor(viewport_size / 2) })(data.spawn, map)
       return map
     },
     change_floor: function() {
       this.map = this.create_map()
     },
     move_player: function (direction) {
-      var tgt_x = this.player_pos[0] + direction[0]
-      var tgt_y = this.player_pos[1] + direction[1]
+      var tgt_x = this.player.pos[0] + direction[0]
+      var tgt_y = this.player.pos[1] + direction[1]
       var tgt_pos = [tgt_x, tgt_y]
       var tgt_index
       var tgt_tile
@@ -88,12 +93,16 @@ new Vue({
         tgt_index = POS.to_index(tgt_pos, this.map_size)
         tgt_tile = this.map[tgt_index]
         if (tgt_tile.walkable) {
-          this.player_pos = tgt_pos
+          this.player.pos = tgt_pos
+          if (tgt_tile.exit) {
+            this.log("It's the stairs! Press . to descend.")
+          }
           return true
         }
         if (tgt_tile.contact) {
+          this.log('You open the door.')
           this.map[tgt_index] = PRESETS.get(tgt_tile.contact)
-          this.player_pos = POS.clone(this.player_pos) // Force Vue refresh
+          this.player.pos = POS.clone(this.player.pos) // Force Vue refresh
         }
       }
       return false
@@ -144,6 +153,7 @@ new Vue({
               type: tile.type
             }
           }
+          data.id = '(' + new_x + ', ' + new_y + ')'
           // data.id = POS.to_index([new_x, new_y], map_size)
           viewport.push(data)
           j++
@@ -159,13 +169,17 @@ new Vue({
     var key_pressed = {}
     var key_released = {}
     var movement_keys = ['KeyA', 'KeyW', 'KeyD', 'KeyS', 'ArrowLeft', 'ArrowUp', 'ArrowRight', 'ArrowDown', 'Period']
+    this.log('Can you find the exit?')
     function handle_key(event) {
       var is_key_down = event.type === 'keydown'
       var code = event.code
       if (is_key_down) {
         if (!key_released[code]) {
+          var first = !key_pressed[code]
           key_pressed[code] = true
-          loop()
+          if (first) {
+            loop()
+          }
         }
       } else {
         key_pressed[code] = false
@@ -180,7 +194,45 @@ new Vue({
     }
     window.addEventListener('keydown', handle_key)
     window.addEventListener('keyup',   handle_key)
+
+    buttons_pressed = []
+
+    function button_down(e) {
+      var button = this
+      button.classList.add('pressed')
+      buttons_pressed.push(button)
+      handle_key({
+        code: button.id,
+        type: 'keydown'
+      })
+    }
+    function button_up(e) {
+      if (buttons_pressed.length) {
+        buttons_pressed.some(function(button) {
+          button.classList.remove('pressed')
+          handle_key({
+            code: button.id,
+            type: 'keyup'
+          })
+        })
+        buttons_pressed = []
+      }
+    }
+
+    var buttons = Array.prototype.slice.call(document.querySelectorAll('.touchpad .button'))
+    buttons.some(function(button) {
+      if (mobile) {
+        button.addEventListener('touchstart', button_down);
+        window.addEventListener('touchend',   button_up);
+      } else {
+        button.addEventListener('mousedown',  button_down);
+        window.addEventListener('mouseup',    button_up);
+      }
+    })
+
+    var timeout
     function loop() {
+      window.clearTimeout(timeout)
       var dir_x = 0
       var dir_y = 0
       var moved, code
@@ -195,11 +247,12 @@ new Vue({
       if (key_pressed.KeyD || key_pressed.ArrowRight) dir_x++
       if (key_pressed.KeyS || key_pressed.ArrowDown)  dir_y++
       if (key_pressed.Period) {
-        var index = POS.to_index(that.player_pos, that.map_size)
+        var index = POS.to_index(that.player.pos, that.map_size)
         var tile = that.map[index]
         if (tile.exit) {
           release_keys(keys)
           that.change_floor()
+          that.log('You descend the staircase.')
           return
         }
       }
@@ -209,10 +262,13 @@ new Vue({
           release_keys(keys)
         }
       }
-      // window.requestAnimationFrame(loop)
+      timeout = window.setTimeout(loop, 1000 * .2)
     }
+    loop()
   },
   components: {
-    game: require('./components/game')(viewport_size)
+    game:     require('./components/game')(viewport_size),
+    log:      require('./components/log'),
+    touchpad: require('./components/touchpad')
   }
 })

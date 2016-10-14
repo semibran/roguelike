@@ -14,6 +14,8 @@ body {
   color: rgb(127, 127, 127);
   font-family: 'Cutive Mono', Menlo, monospace;
   background: black;
+  display: -webkit-box;
+  display: -ms-flexbox;
   display: flex;
 }
 
@@ -21,19 +23,24 @@ body {
   width: 100vmin;
   height: 100vmin;
   margin: auto;
-  perspective: 512px;
+  -webkit-perspective: 512px;
+          perspective: 512px;
 }
 
 .game {
   position: relative;
-  transform: rotateX(45deg);
+  -webkit-transform: rotateX(45deg);
+          transform: rotateX(45deg);
   z-index: -1;
 }
 
 .grid {
   position: relative;
+  display: -webkit-box;
+  display: -ms-flexbox;
   display: flex;
-  flex-flow: wrap;
+  -ms-flex-flow: wrap;
+      flex-flow: wrap;
   font-size: calc(100vmin / 9);
 }
 
@@ -71,6 +78,7 @@ body {
   right: 0;
   top: 0;
   bottom: 0;
+  background: -webkit-linear-gradient(bottom, black, transparent);
   background: linear-gradient(to top, black, transparent);
 }
 
@@ -82,7 +90,10 @@ body {
 }
 
 .update-move {
+  -webkit-transition: -webkit-transform .5s;
+  transition: -webkit-transform .5s;
   transition: transform .5s;
+  transition: transform .5s, -webkit-transform .5s;
 }
 
 ul {
@@ -96,18 +107,27 @@ ul {
   bottom: 0;
   width: 40vmin;
   margin: 2vmin;
+  display: -webkit-box;
+  display: -ms-flexbox;
   display: flex;
-  flex-flow: wrap;
+  -ms-flex-flow: wrap;
+      flex-flow: wrap;
   opacity: .25;
   padding: 1vmin;
-  transform: rotate(45deg);
+  -webkit-transform: rotate(45deg);
+          transform: rotate(45deg);
 }
 
 .button-wrap {
   padding: 1vmin;
   position: relative;
+  display: -webkit-box;
+  display: -ms-flexbox;
   display: flex;
-  user-select: none;
+  -webkit-user-select: none;
+     -moz-user-select: none;
+      -ms-user-select: none;
+          user-select: none;
   width: calc(100% / 2);
 }
 
@@ -120,6 +140,7 @@ ul {
   padding: 100% 0 0;
   background: white;
   border-radius: 1vmin;
+  -webkit-transition: .1s;
   transition: .1s;
 }
 

@@ -16,8 +16,9 @@ module.exports = (function(){
   }
 
   function choose(array) {
-    if (!array.length)
-      return null
+    var a = arguments.length
+    if (a === 0 || !array.length)
+      array = [0, 1]
     return array[get(array.length)]
   }
 
