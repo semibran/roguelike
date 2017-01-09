@@ -1,0 +1,3 @@
+rootProject.name = 'roguelike'
+
+include ':app'
