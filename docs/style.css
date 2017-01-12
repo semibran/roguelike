@@ -1,0 +1,42 @@
+html, body {
+  height: 100%;
+}
+
+body {
+  margin: 0;
+  background: black;
+  display: flex;
+  overflow: hidden;
+}
+
+#app {
+  width: 100vmin;
+  height: 100vmin;
+  margin: auto;
+  -webkit-user-select: none;
+  user-select: none;
+}
+
+.view {
+  display: flex;
+  flex-flow: wrap;
+}
+
+.sprite {
+  width: 1em;
+  height: 1em;
+  text-align: center;
+  line-height: 1;
+  color: white;
+  background: black;
+  font-family: 'Cutive Mono', monospace;
+  cursor: none;
+}
+
+.sprite:hover {
+  background: rgba(255, 255, 255, 0.1);
+}
+
+.sprite:active {
+  background: rgba(255, 255, 255, 0.25);
+}

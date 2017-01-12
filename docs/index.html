@@ -1,0 +1,20 @@
+<!DOCTYPE html>
+<html>
+  <head>
+    <title>Roguelike</title>
+    <link rel='stylesheet' href='https://fonts.googleapis.com/css?family=Cutive+Mono'/>
+    <link rel='stylesheet' href='style.css'/>
+    <script type='text/x-template' id='game-template'>
+    	<div class='view'>
+      	<div class='sprite' v-for='sprite, index in view' v-on:click='onclick(index)' v-bind:style='{ color: sprite.color }'>{{ sprite.char }}</div>
+      </div>
+    </script>
+  </head>
+  <body>
+    <div id='app'>
+      <game :view='view' :onclick='onclick'></game>
+    </div>
+    <script src='https://cdnjs.cloudflare.com/ajax/libs/vue/2.0.1/vue.min.js'></script>
+    <script src='build.js'></script>
+  </body>
+</html>
