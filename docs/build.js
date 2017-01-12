@@ -28,7 +28,20 @@ var _typeof = typeof Symbol === "function" && typeof Symbol.iterator === "symbol
 
 
 
+var defineProperty = function (obj, key, value) {
+  if (key in obj) {
+    Object.defineProperty(obj, key, {
+      value: value,
+      enumerable: true,
+      configurable: true,
+      writable: true
+    });
+  } else {
+    obj[key] = value;
+  }
 
+  return obj;
+};
 
 
 
@@ -131,19 +144,19 @@ function choose(array) {
   return array[get$$1(array.length)];
 }
 
-var directions = [[-1, 0], [-1, -1], [0, -1], [1, -1], [1, 0], [1, 1], [0, 1], [-1, 1]];
-var LEFT = directions[0];
-var UP_LEFT = directions[1];
-var UP = directions[2];
-var UP_RIGHT = directions[3];
-var RIGHT = directions[4];
-var DOWN_RIGHT = directions[5];
-var DOWN = directions[6];
-var DOWN_LEFT = directions[7];
+var DIRECTIONS = [[-1, 0], [-1, -1], [0, -1], [1, -1], [1, 0], [1, 1], [0, 1], [-1, 1]];
+var LEFT = DIRECTIONS[0];
+var UP_LEFT = DIRECTIONS[1];
+var UP = DIRECTIONS[2];
+var UP_RIGHT = DIRECTIONS[3];
+var RIGHT = DIRECTIONS[4];
+var DOWN_RIGHT = DIRECTIONS[5];
+var DOWN = DIRECTIONS[6];
+var DOWN_LEFT = DIRECTIONS[7];
 
-var adjacentDirections = [LEFT, UP, RIGHT, DOWN];
+var DIRECTIONS_CARDINAL = [LEFT, UP, RIGHT, DOWN];
 
-var constants = { LEFT: LEFT, RIGHT: RIGHT, UP: UP, DOWN: DOWN, UP_LEFT: UP_LEFT, UP_RIGHT: UP_RIGHT, DOWN_LEFT: DOWN_LEFT, DOWN_RIGHT: DOWN_RIGHT, directions: directions, adjacentDirections: adjacentDirections };
+var constants = { LEFT: LEFT, RIGHT: RIGHT, UP: UP, DOWN: DOWN, UP_LEFT: UP_LEFT, UP_RIGHT: UP_RIGHT, DOWN_LEFT: DOWN_LEFT, DOWN_RIGHT: DOWN_RIGHT, DIRECTIONS: DIRECTIONS, DIRECTIONS_CARDINAL: DIRECTIONS_CARDINAL };
 var methods = { toString: toString, fromString: fromString, toIndex: toIndex, fromIndex: fromIndex, isEqual: isEqual, isEdge: isEdge, isInside: isInside, getNeighbors: getNeighbors, getManhattan: getManhattan };
 
 var Cell = Object.assign(constants, methods);
@@ -187,7 +200,17 @@ function isInside(cell, size) {
       x = _cell3[0],
       y = _cell3[1];
 
-  return x >= 0 && y >= 0 && x < size && y < size;
+  var rect = [0, 0, size, size];
+  if (Array.isArray(size)) rect = size;
+
+  var _rect = rect,
+      _rect2 = slicedToArray(_rect, 4),
+      rectX = _rect2[0],
+      rectY = _rect2[1],
+      rectWidth = _rect2[2],
+      rectHeight = _rect2[3];
+
+  return x >= rectX && y >= rectY && x < rectX + rectWidth && y < rectY + rectHeight;
 }
 
 function getNeighbors(cell, diagonals, step) {
@@ -199,8 +222,8 @@ function getNeighbors(cell, diagonals, step) {
       y = _cell4[1];
 
   var neighbors = [];
-  var directions = adjacentDirections;
-  if (diagonals) directions = directions;
+  var directions = DIRECTIONS_CARDINAL;
+  if (diagonals) directions = DIRECTIONS;
   var _iteratorNormalCompletion = true;
   var _didIteratorError = false;
   var _iteratorError = undefined;
@@ -291,7 +314,7 @@ function getCorners(rect, exclusive) {
       h = _rect[3];
 
   if (exclusive) x--, y--, w += 2, h += 2;
-  return [[x, y], [x + w, y], [x, y + h], [x + w, y + h]];
+  return [[x, y], [x + w - 1, y], [x, y + h - 1], [x + w - 1, y + h - 1]];
 }
 
 function getEdges(rect, exclusive) {
@@ -355,7 +378,8 @@ var FLOOR$1 = 0;
 var WALL$1 = 1;
 var DOOR$1 = 2;
 var DOOR_OPEN$1 = 3;
-var STAIRS$1 = 4;
+var DOOR_HIDDEN$1 = 4;
+var STAIRS$1 = 5;
 
 var tiles = [{
   name: 'floor',
@@ -372,15 +396,51 @@ var tiles = [{
   walkable: true,
   door: true
 }, {
+  name: 'door_hidden',
+  opaque: true,
+  door: true,
+  hidden: true
+}, {
   name: 'stairs',
   walkable: true,
   stairs: true
 }];
 
-var costs = [0, Infinity, 2, 1, 0];
+var costs = [];
+var _iteratorNormalCompletion = true;
+var _didIteratorError = false;
+var _iteratorError = undefined;
 
-var constants$1 = { FLOOR: FLOOR$1, WALL: WALL$1, DOOR: DOOR$1, DOOR_OPEN: DOOR_OPEN$1, STAIRS: STAIRS$1, tiles: tiles, costs: costs };
-var methods$1 = { create: create, fill: fill, clear: clear, getAt: getAt, setAt: setAt, getSize: getSize, findPath: findPath, openDoor: openDoor, closeDoor: closeDoor, toggleDoor: toggleDoor };
+try {
+  for (var _iterator = tiles[Symbol.iterator](), _step; !(_iteratorNormalCompletion = (_step = _iterator.next()).done); _iteratorNormalCompletion = true) {
+    var tile = _step.value;
+
+    var cost = 0;
+    if (!tile.walkable && !tile.door) cost = Infinity;
+    if (tile.hidden) cost = 1000;
+    if (tile.door) {
+      cost++;
+      if (!tile.walkable) cost++;
+    }
+    costs.push(cost);
+  }
+} catch (err) {
+  _didIteratorError = true;
+  _iteratorError = err;
+} finally {
+  try {
+    if (!_iteratorNormalCompletion && _iterator.return) {
+      _iterator.return();
+    }
+  } finally {
+    if (_didIteratorError) {
+      throw _iteratorError;
+    }
+  }
+}
+
+var constants$1 = { FLOOR: FLOOR$1, WALL: WALL$1, DOOR: DOOR$1, DOOR_OPEN: DOOR_OPEN$1, DOOR_HIDDEN: DOOR_HIDDEN$1, STAIRS: STAIRS$1, tiles: tiles, costs: costs };
+var methods$1 = { create: create, fill: fill, clear: clear, getAt: getAt, setAt: setAt, getSize: getSize, findPath: findPath };
 var World$$1 = Object.assign({}, constants$1, methods$1);
 
 var sqrt = function (cache) {
@@ -404,27 +464,27 @@ function fill(data, id, rect) {
   var size = getSize(data);
   if (rect) {
     var cells = Rect.getCells(rect);
-    var _iteratorNormalCompletion = true;
-    var _didIteratorError = false;
-    var _iteratorError = undefined;
+    var _iteratorNormalCompletion2 = true;
+    var _didIteratorError2 = false;
+    var _iteratorError2 = undefined;
 
     try {
-      for (var _iterator = cells[Symbol.iterator](), _step; !(_iteratorNormalCompletion = (_step = _iterator.next()).done); _iteratorNormalCompletion = true) {
-        var cell = _step.value;
+      for (var _iterator2 = cells[Symbol.iterator](), _step2; !(_iteratorNormalCompletion2 = (_step2 = _iterator2.next()).done); _iteratorNormalCompletion2 = true) {
+        var cell = _step2.value;
 
         setAt(data, cell, id);
       }
     } catch (err) {
-      _didIteratorError = true;
-      _iteratorError = err;
+      _didIteratorError2 = true;
+      _iteratorError2 = err;
     } finally {
       try {
-        if (!_iteratorNormalCompletion && _iterator.return) {
-          _iterator.return();
+        if (!_iteratorNormalCompletion2 && _iterator2.return) {
+          _iterator2.return();
         }
       } finally {
-        if (_didIteratorError) {
-          throw _iteratorError;
+        if (_didIteratorError2) {
+          throw _iteratorError2;
         }
       }
     }
@@ -461,8 +521,19 @@ function getSize(data) {
   return sqrt(data.length);
 }
 
-function findPath(data, start, goal, costs) {
-  costs = costs || World$$1.costs;
+function findPath(data, start, goal, costs, diagonals) {
+
+  if (!costs) costs = {
+    tiles: World$$1.costs,
+    cells: {}
+  };
+
+  if (!costs.tiles) costs = {
+    tiles: costs,
+    cells: {}
+  };
+
+  if (costs.tiles[World$$1.getAt(data, goal)] === Infinity) return null;
 
   var path = [];
 
@@ -480,28 +551,28 @@ function findPath(data, start, goal, costs) {
   var cells = data.reduce(function (cells, id, index) {
     return cells.concat([Cell.fromIndex(index, size)]);
   }, []);
-  var _iteratorNormalCompletion2 = true;
-  var _didIteratorError2 = false;
-  var _iteratorError2 = undefined;
+  var _iteratorNormalCompletion3 = true;
+  var _didIteratorError3 = false;
+  var _iteratorError3 = undefined;
 
   try {
-    for (var _iterator2 = cells[Symbol.iterator](), _step2; !(_iteratorNormalCompletion2 = (_step2 = _iterator2.next()).done); _iteratorNormalCompletion2 = true) {
-      var _cell2 = _step2.value;
+    for (var _iterator3 = cells[Symbol.iterator](), _step3; !(_iteratorNormalCompletion3 = (_step3 = _iterator3.next()).done); _iteratorNormalCompletion3 = true) {
+      var _cell2 = _step3.value;
 
       scores.g[_cell2] = Infinity;
       scores.f[_cell2] = Infinity;
     }
   } catch (err) {
-    _didIteratorError2 = true;
-    _iteratorError2 = err;
+    _didIteratorError3 = true;
+    _iteratorError3 = err;
   } finally {
     try {
-      if (!_iteratorNormalCompletion2 && _iterator2.return) {
-        _iterator2.return();
+      if (!_iteratorNormalCompletion3 && _iterator3.return) {
+        _iterator3.return();
       }
     } finally {
-      if (_didIteratorError2) {
-        throw _iteratorError2;
+      if (_didIteratorError3) {
+        throw _iteratorError3;
       }
     }
   }
@@ -524,63 +595,43 @@ function findPath(data, start, goal, costs) {
       return path;
     }
     closed[cell] = true;
-    var _iteratorNormalCompletion3 = true;
-    var _didIteratorError3 = false;
-    var _iteratorError3 = undefined;
+    var _iteratorNormalCompletion4 = true;
+    var _didIteratorError4 = false;
+    var _iteratorError4 = undefined;
 
     try {
-      for (var _iterator3 = Cell.getNeighbors(cell)[Symbol.iterator](), _step3; !(_iteratorNormalCompletion3 = (_step3 = _iterator3.next()).done); _iteratorNormalCompletion3 = true) {
-        var neighbor = _step3.value;
+      for (var _iterator4 = Cell.getNeighbors(cell, diagonals)[Symbol.iterator](), _step4; !(_iteratorNormalCompletion4 = (_step4 = _iterator4.next()).done); _iteratorNormalCompletion4 = true) {
+        var neighbor = _step4.value;
 
         if (!Cell.isInside(neighbor, size) || neighbor in closed) continue;
-        var cost = costs[getAt(data, neighbor)] || 0;
-        if (cost === Infinity) continue;
-        var g = scores.g[cell] + 1 + cost;
         var id = neighbor.toString();
+        var tileCost = costs.tiles[getAt(data, neighbor)] || 0;
+        var cellCost = costs.cells[neighbor] || 0;
+        var cost = tileCost + cellCost;
+        if (!id === goalId && cost === Infinity) continue;
+        var g = scores.g[cell] + 1 + cost;
         if (!opened.includes(id)) opened.push(id);else if (g >= scores.g[neighbor]) continue;
         parent[neighbor] = cell;
         scores.g[neighbor] = g;
         scores.f[neighbor] = g + Cell.getManhattan(neighbor, goal);
       }
     } catch (err) {
-      _didIteratorError3 = true;
-      _iteratorError3 = err;
+      _didIteratorError4 = true;
+      _iteratorError4 = err;
     } finally {
       try {
-        if (!_iteratorNormalCompletion3 && _iterator3.return) {
-          _iterator3.return();
+        if (!_iteratorNormalCompletion4 && _iterator4.return) {
+          _iterator4.return();
         }
       } finally {
-        if (_didIteratorError3) {
-          throw _iteratorError3;
+        if (_didIteratorError4) {
+          throw _iteratorError4;
         }
       }
     }
   }
 
   return null;
-}
-
-function openDoor(data, cell) {
-  data = data.slice();
-  var id = World$$1.getAt(data, cell);
-  if (id === DOOR$1 || id === DOOR_OPEN$1) World$$1.setAt(data, cell, DOOR_OPEN$1);
-  return data;
-}
-
-function closeDoor(data, cell) {
-  data = data.slice();
-  var id = World$$1.getAt(data, cell);
-  if (id === DOOR$1 || id === DOOR_OPEN$1) World$$1.setAt(data, cell, DOOR$1);
-  return data;
-}
-
-function toggleDoor(data, cell) {
-  data = data.slice();
-  var id = World$$1.getAt(data, cell);
-  if (id === DOOR$1) World$$1.setAt(data, cell, DOOR_OPEN$1);
-  if (id === DOOR_OPEN$1) World$$1.setAt(data, cell, DOOR$1);
-  return data;
 }
 
 var FOV$$1 = { get: get$2 };
@@ -620,7 +671,7 @@ function getOctant(data, start, range, octant) {
           _transformY = _transformOctant4[1];
 
       var _cell = [x + _transformX, y + _transformY];
-      if (!Cell.isInside(_cell, size)) break;
+      if (!Cell.isInside(_cell, size) || _transformX * _transformX + _transformY * _transformY > range * range) break;
       if (!fullShadow) {
         (function () {
           var projection = getProjection(row, col);
@@ -684,12 +735,14 @@ function transformOctant(row, col, octant) {
 
 var Entity$$1 = { create: create$1 };
 
-function create$1(sprite) {
+function create$1(type, sprite, walkable) {
+
+  walkable = !!walkable;
 
   var path = null;
 
   function look() {
-    var cells = FOV$$1.get(entity.world.data, entity.cell);
+    var cells = FOV$$1.get(entity.world.data, entity.cell, 7);
     entity.seeing = {};
     var _iteratorNormalCompletion = true;
     var _didIteratorError = false;
@@ -699,7 +752,10 @@ function create$1(sprite) {
       for (var _iterator = cells[Symbol.iterator](), _step; !(_iteratorNormalCompletion = (_step = _iterator.next()).done); _iteratorNormalCompletion = true) {
         var cell = _step.value;
 
-        entity.known[cell] = World$$1.tiles[World$$1.getAt(entity.world.data, cell)].name;
+        var _type = World$$1.tiles[entity.world.getAt(cell)].name;
+        var other = entity.world.entitiesAt(cell)[0];
+        if (other) _type = other.type;
+        entity.known[cell] = _type;
         entity.seeing[cell] = true;
       }
     } catch (err) {
@@ -731,22 +787,30 @@ function create$1(sprite) {
         distY = _direction[1];
 
     var target = [cellX + distX, cellY + distY];
-    var id = World$$1.getAt(world.data, target);
+    var id = world.getAt(target);
     var tile = World$$1.tiles[id];
+    var entities = world.entitiesAt(target);
     if (tile.walkable) {
-      entity.cell = target;
-      moved = true;
-      look();
+      var enemies = entities.filter(function (entity) {
+        return !entity.walkable;
+      });
+      if (!enemies.length) {
+        entity.cell = target;
+        moved = true;
+        look();
+      } else {
+        var enemy = enemies[0];
+        attack(enemy);
+      }
     } else if (tile.door) {
-      world.data = World$$1.openDoor(world.data, target);
-      moved = false;
+      world.openDoor(target);
       look();
     }
     return moved;
   }
 
   function moveTo(target) {
-    if (!path || path[path.length - 1] !== target) path = World$$1.findPath(entity.world.data, entity.cell, target);
+    if (!path || path[path.length - 1] !== target) path = entity.world.findPath(entity, target);
     if (!path) return false;
     var next = void 0;
     path.some(function (cell, index) {
@@ -769,7 +833,17 @@ function create$1(sprite) {
     return entity.move(dist);
   }
 
-  var props = { sprite: sprite, seeing: [], known: {}, world: null, cell: null };
+  function attack(entity) {
+    entity.health--;
+    if (entity.health <= 0) {
+      var entities = entity.world.entities;
+      var index = entities.indexOf(entity);
+      if (index !== -1) entities.splice(index, 1);
+      look();
+    }
+  }
+
+  var props = { type: type, sprite: sprite, walkable: walkable, wandering: true, health: 1, seeing: {}, known: {}, world: null, cell: null };
   var methods = { look: look, move: move, moveTo: moveTo };
   var entity = Object.assign({}, props, methods);
 
@@ -779,6 +853,8 @@ function create$1(sprite) {
 var FLOOR$2 = World$$1.FLOOR;
 var WALL$2 = World$$1.WALL;
 var DOOR$2 = World$$1.DOOR;
+var DOOR_OPEN$2 = World$$1.DOOR_OPEN;
+var DOOR_HIDDEN$2 = World$$1.DOOR_HIDDEN;
 
 
 var Generator$$1 = { createDungeon: createDungeon };
@@ -791,32 +867,55 @@ function findRoom(min, max, worldSize) {
   return [x, y, w, h];
 }
 
-function findRooms(data, maxRatio) {
-  maxRatio = maxRatio || 0.33;
-  var size = World$$1.getSize(data);
-  var area = size * size;
-  var min = Math.round(size / 5);
-  var max = Math.round(size / 4);
-  var rooms = { cells: {}, edges: {}, rects: {}, list: [] };
-  var tries = 0;
-  var total = 0;
-  var valid = void 0;
-  do {
-    var room = { cells: {}, edges: {}, rect: null, type: 'room' };
-    do {
-      valid = true;
-      room.rect = findRoom(min, max, size);
+var Diamond = function () {
+
+  var cache = {};
+
+  function cellsFromObject(obj) {
+    return Object.keys(obj).map(function (key) {
+      return key.split(',').map(Number);
+    });
+  }
+
+  function cacheDiamond(diamond) {
+    var _diamond = slicedToArray(diamond, 3),
+        x = _diamond[0],
+        y = _diamond[1],
+        radius = _diamond[2];
+
+    var start = [x, y];
+    var stack = [start];
+    var cells = defineProperty({}, start, 0);
+    var edges = {};
+    var doors = {};
+
+    while (stack.length) {
+      var node = stack.pop();
+      var nexts = Cell.getNeighbors(node).filter(function (neighbor) {
+        return !(neighbor.toString() in cells);
+      });
       var _iteratorNormalCompletion = true;
       var _didIteratorError = false;
       var _iteratorError = undefined;
 
       try {
-        for (var _iterator = rooms.list[Symbol.iterator](), _step; !(_iteratorNormalCompletion = (_step = _iterator.next()).done); _iteratorNormalCompletion = true) {
-          var other = _step.value;
+        for (var _iterator = nexts[Symbol.iterator](), _step; !(_iteratorNormalCompletion = (_step = _iterator.next()).done); _iteratorNormalCompletion = true) {
+          var next = _step.value;
 
-          if (Rect.isIntersecting(room.rect, other.rect)) {
-            valid = false;
-            break;
+          var steps = cells[node] + 1;
+          if (steps <= radius) {
+            cells[next] = steps;
+            stack.unshift(next);
+          } else {
+            var _next = slicedToArray(next, 2),
+                nextX = _next[0],
+                nextY = _next[1];
+
+            var distX = nextX - x,
+                distY = nextY - y;
+
+            if (!distX || !distY) doors[next] = steps;
+            edges[next] = steps;
           }
         }
       } catch (err) {
@@ -833,11 +932,69 @@ function findRooms(data, maxRatio) {
           }
         }
       }
-    } while (!valid && ++tries < area);
-    if (valid) {
-      var rect = room.rect;
-      var cells = Rect.getCells(rect);
-      var edges = Rect.getEdges(rect, true);
+    }
+
+    cells = cellsFromObject(cells);
+    edges = cellsFromObject(edges);
+    doors = cellsFromObject(doors);
+
+    return { cells: cells, edges: edges, doors: doors };
+  }
+
+  function getCached(diamond) {
+    var cached = cache[diamond];
+    if (!cached) cached = cache[diamond] = cacheDiamond(diamond);
+    return cached;
+  }
+
+  function getCells(diamond) {
+    return getCached(diamond).cells;
+  }
+
+  function getEdges(diamond) {
+    return getCached(diamond).edges;
+  }
+
+  return { getCells: getCells, getEdges: getEdges };
+}();
+
+function findDiamondRoom(min, max, worldSize) {
+  var radius = Random.get((max - min) / 2 + 1) * 2 + min;
+  var nodes = findNodes(worldSize, radius).map(Cell.fromString);
+  var diamond = Random.choose(nodes);
+  diamond.push(radius);
+  return diamond;
+}
+
+function findRooms(data, maxRatio) {
+  maxRatio = maxRatio || 0.33;
+  var size = World$$1.getSize(data);
+  var area = size * size;
+  var min = Math.round(size / 5);
+  var max = Math.round(size / 4);
+  var valid = void 0;
+  var rooms = { cells: {}, edges: {}, rects: {}, diamonds: {}, list: [] };
+  var total = 0;
+  var fails = 0;
+  var failed = {};
+  do {
+    var type = 'rect';
+    var shape = void 0;
+    do {
+      valid = true;
+      var cells = void 0;
+      if (Random.choose(100)) type = 'diamond';
+      if (type === 'rect') {
+        shape = findRoom(min, max, size);
+        cells = Rect.getBorder(shape);
+      } else if (type === 'diamond') {
+        shape = findDiamondRoom(2, 4, size);
+        cells = Diamond.getEdges(shape);
+      }
+      if (failed[shape]) {
+        valid = false;
+        continue;
+      }
       var _iteratorNormalCompletion2 = true;
       var _didIteratorError2 = false;
       var _iteratorError2 = undefined;
@@ -846,7 +1003,11 @@ function findRooms(data, maxRatio) {
         for (var _iterator2 = cells[Symbol.iterator](), _step2; !(_iteratorNormalCompletion2 = (_step2 = _iterator2.next()).done); _iteratorNormalCompletion2 = true) {
           var cell = _step2.value;
 
-          rooms.cells[cell] = room.cells[cell] = room;
+          if (rooms.cells[cell] || rooms.edges[cell]) {
+            failed[shape] = true;
+            valid = false;
+            break;
+          }
         }
       } catch (err) {
         _didIteratorError2 = true;
@@ -862,17 +1023,29 @@ function findRooms(data, maxRatio) {
           }
         }
       }
-
+    } while (!valid && ++fails < area);
+    if (valid) {
+      var room = void 0,
+          edges = void 0;
+      room = { edges: {}, shape: shape, type: type };
+      if (type === 'rect') {
+        edges = Rect.getEdges(shape, true);
+        rooms.rects[shape] = room;
+        room.cells = Rect.getCells(shape);
+      } else if (type === 'diamond') {
+        edges = Diamond.getEdges(shape);
+        rooms.diamonds[shape] = room;
+        room.cells = Diamond.getCells(shape);
+      }
       var _iteratorNormalCompletion3 = true;
       var _didIteratorError3 = false;
       var _iteratorError3 = undefined;
 
       try {
-        for (var _iterator3 = edges[Symbol.iterator](), _step3; !(_iteratorNormalCompletion3 = (_step3 = _iterator3.next()).done); _iteratorNormalCompletion3 = true) {
-          var edge = _step3.value;
+        for (var _iterator3 = room.cells[Symbol.iterator](), _step3; !(_iteratorNormalCompletion3 = (_step3 = _iterator3.next()).done); _iteratorNormalCompletion3 = true) {
+          var _cell = _step3.value;
 
-          var sharedEdges = rooms.edges[edge] = room.edges[edge] = room.edges[edge] || [];
-          sharedEdges.push(room);
+          rooms.cells[_cell] = room;
         }
       } catch (err) {
         _didIteratorError3 = true;
@@ -889,18 +1062,48 @@ function findRooms(data, maxRatio) {
         }
       }
 
-      rooms.rects[rect] = room;
+      var _iteratorNormalCompletion4 = true;
+      var _didIteratorError4 = false;
+      var _iteratorError4 = undefined;
+
+      try {
+        for (var _iterator4 = edges[Symbol.iterator](), _step4; !(_iteratorNormalCompletion4 = (_step4 = _iterator4.next()).done); _iteratorNormalCompletion4 = true) {
+          var edge = _step4.value;
+
+          var sharedEdges = room.edges[edge] = rooms.edges[edge] = rooms.edges[edge] || [];
+          sharedEdges.push(room);
+        }
+      } catch (err) {
+        _didIteratorError4 = true;
+        _iteratorError4 = err;
+      } finally {
+        try {
+          if (!_iteratorNormalCompletion4 && _iterator4.return) {
+            _iterator4.return();
+          }
+        } finally {
+          if (_didIteratorError4) {
+            throw _iteratorError4;
+          }
+        }
+      }
+
       rooms.list.push(room);
-      total += cells.length;
+      total += room.cells.length;
     }
   } while (valid && total / area < maxRatio);
   return rooms;
 }
 
-function findNodes(data) {
-  var size = World$$1.getSize(data);
-  var nodes = new Set();
-  var half = (size - 1) / 2;
+function findNodes(worldSize, offset) {
+  offset = offset || 0;
+  var data = null;
+  if ((typeof worldSize === 'undefined' ? 'undefined' : _typeof(worldSize)) === 'object') {
+    data = worldSize;
+    worldSize = World$$1.getSize(data);
+  }
+  var nodes = [];
+  var half = (worldSize - 1) / 2 - offset;
   var i = half * half;
   while (i--) {
     var _Cell$fromIndex = Cell.fromIndex(i, half),
@@ -908,8 +1111,10 @@ function findNodes(data) {
         nodeX = _Cell$fromIndex2[0],
         nodeY = _Cell$fromIndex2[1];
 
-    var node = [nodeX * 2 + 1, nodeY * 2 + 1];
-    if (World$$1.getAt(data, node) === WALL$2) nodes.add(node.toString());
+    var node = [nodeX * 2 + 1 + offset, nodeY * 2 + 1 + offset];
+    if (!data || World$$1.getAt(data, node) === WALL$2 && !Cell.getNeighbors(node, true).filter(function (neighbor) {
+      return World$$1.getAt(data, neighbor) !== WALL$2;
+    }).length) nodes.push(node.toString());
   }
   return nodes;
 }
@@ -917,14 +1122,13 @@ function findNodes(data) {
 function findMazes(data) {
   var size = World$$1.getSize(data);
   var mazes = { cells: {}, ends: {}, list: [] };
-  var nodes = findNodes(data);
-
-  var _loop = function _loop() {
+  var nodes = new Set(findNodes(data).map(Cell.toString));
+  while (nodes.size) {
     var maze = { cells: {}, ends: {}, type: 'maze' };
     var start = Random.choose([].concat(toConsumableArray(nodes)));
-    var id = Cell.fromString(start);
-    var stack = [id];
-    var track = [id];
+    var _id = Cell.fromString(start);
+    var stack = [_id];
+    var track = [_id];
     var end = true;
     mazes.ends[start] = maze.ends[start] = maze;
     while (stack.length) {
@@ -936,7 +1140,11 @@ function findMazes(data) {
       nodes.delete(node.toString());
       mazes.cells[node] = maze.cells[node] = maze;
       var neighbors = Cell.getNeighbors(node, false, 2).filter(function (neighbor) {
-        return World$$1.getAt(data, neighbor) === WALL$2 && !(neighbor.toString() in maze.cells);
+        if (World$$1.getAt(data, neighbor) !== WALL$2 || neighbor in mazes.cells) return false;
+        var nonwalls = Cell.getNeighbors(neighbor, true).filter(function (neighbor) {
+          return World$$1.getAt(data, neighbor) !== WALL$2;
+        });
+        return !nonwalls.length;
       });
       if (neighbors.length) {
         var neighbor = Random.choose(neighbors);
@@ -964,27 +1172,23 @@ function findMazes(data) {
       }
     }
     mazes.list.push(maze);
-  };
-
-  while (nodes.size) {
-    _loop();
   }
   return mazes;
 }
 
 function findConnectors(data, rooms, mazes) {
   var connectors = {};
-  for (var id in rooms.edges) {
-    var cell = Cell.fromString(id);
+  for (var _id2 in rooms.edges) {
+    var cell = Cell.fromString(_id2);
     var neighbors = Cell.getNeighbors(cell);
     var regions = [];
-    var _iteratorNormalCompletion4 = true;
-    var _didIteratorError4 = false;
-    var _iteratorError4 = undefined;
+    var _iteratorNormalCompletion5 = true;
+    var _didIteratorError5 = false;
+    var _iteratorError5 = undefined;
 
     try {
-      for (var _iterator4 = neighbors[Symbol.iterator](), _step4; !(_iteratorNormalCompletion4 = (_step4 = _iterator4.next()).done); _iteratorNormalCompletion4 = true) {
-        var neighbor = _step4.value;
+      for (var _iterator5 = neighbors[Symbol.iterator](), _step5; !(_iteratorNormalCompletion5 = (_step5 = _iterator5.next()).done); _iteratorNormalCompletion5 = true) {
+        var neighbor = _step5.value;
 
         var _neighbor2 = slicedToArray(neighbor, 2),
             x = _neighbor2[0],
@@ -994,49 +1198,6 @@ function findConnectors(data, rooms, mazes) {
           var region = rooms.cells[neighbor] || mazes.cells[neighbor];
           if (region) regions.push(region);
         }
-      }
-    } catch (err) {
-      _didIteratorError4 = true;
-      _iteratorError4 = err;
-    } finally {
-      try {
-        if (!_iteratorNormalCompletion4 && _iterator4.return) {
-          _iterator4.return();
-        }
-      } finally {
-        if (_didIteratorError4) {
-          throw _iteratorError4;
-        }
-      }
-    }
-
-    if (regions.length === 2) connectors[cell] = regions;
-  }
-  return connectors;
-}
-
-function findDoors(data, rooms, mazes) {
-
-  var disconnected = new Set(rooms.list);
-
-  var connectorRegions = findConnectors(data, rooms, mazes);
-  var start = Random.choose(rooms.list);
-  var stack = [start];
-  var track = [start]; // Queue for backtracking
-  var total = [start]; // Total list of regions
-  var doors = []; // Resulting doors
-
-  // Connectors store the `regions` they connect; get the one that's not `node`
-  function getNext(regions, node) {
-    var _iteratorNormalCompletion5 = true;
-    var _didIteratorError5 = false;
-    var _iteratorError5 = undefined;
-
-    try {
-      for (var _iterator5 = regions[Symbol.iterator](), _step5; !(_iteratorNormalCompletion5 = (_step5 = _iterator5.next()).done); _iteratorNormalCompletion5 = true) {
-        var region = _step5.value;
-
-        if (region !== node) return region;
       }
     } catch (err) {
       _didIteratorError5 = true;
@@ -1053,6 +1214,133 @@ function findDoors(data, rooms, mazes) {
       }
     }
 
+    if (regions.length === 2) connectors[cell] = regions;
+  }
+  return connectors;
+}
+
+function findDoors(data, rooms, mazes) {
+
+  var connectorRegions = findConnectors(data, rooms, mazes);
+  var start = Random.choose(rooms.list);
+  var stack = [start];
+  var track = [start];
+  var doors = [];
+  var hidden = [];
+
+  var disconnected = new Set(rooms.list);
+  var connected = new Set([start]);
+
+  while (stack.length) {
+    var node = stack.pop();
+    if (rooms.list.includes(node) && disconnected.has(node)) disconnected.delete(node);
+    var connectors = getConnectors(node);
+    var connectorKeys = Object.keys(connectors);
+    if (connectorKeys.length) {
+      var connector = Random.choose(connectorKeys);
+      var next = connectors[connector];
+      if (next) {
+        // Remove extraneous connectors
+        for (var _id3 in next.cells) {
+          var cell = Cell.fromString(_id3);
+          var neighbors = Cell.getNeighbors(cell);
+          var _iteratorNormalCompletion6 = true;
+          var _didIteratorError6 = false;
+          var _iteratorError6 = undefined;
+
+          try {
+            for (var _iterator6 = neighbors[Symbol.iterator](), _step6; !(_iteratorNormalCompletion6 = (_step6 = _iterator6.next()).done); _iteratorNormalCompletion6 = true) {
+              var neighbor = _step6.value;
+
+              if (neighbor in connectorRegions && connectorRegions[neighbor].includes(node)) delete connectorRegions[neighbor];
+            }
+          } catch (err) {
+            _didIteratorError6 = true;
+            _iteratorError6 = err;
+          } finally {
+            try {
+              if (!_iteratorNormalCompletion6 && _iterator6.return) {
+                _iterator6.return();
+              }
+            } finally {
+              if (_didIteratorError6) {
+                throw _iteratorError6;
+              }
+            }
+          }
+        }
+        doors.push(connector);
+        stack.push(next);
+        track.push(next);
+        connected.add(next);
+      }
+    } else {
+      if (track.length) stack.push(track.pop());
+    }
+  }
+
+  var _iteratorNormalCompletion7 = true;
+  var _didIteratorError7 = false;
+  var _iteratorError7 = undefined;
+
+  try {
+    for (var _iterator7 = disconnected[Symbol.iterator](), _step7; !(_iteratorNormalCompletion7 = (_step7 = _iterator7.next()).done); _iteratorNormalCompletion7 = true) {
+      var room = _step7.value;
+
+      var edges = Object.keys(room.edges).filter(function (edge) {
+        return edge in connectorRegions;
+      });
+      if (edges.length) {
+        var edge = Random.choose(edges);
+        hidden.push(edge);
+      }
+    }
+  } catch (err) {
+    _didIteratorError7 = true;
+    _iteratorError7 = err;
+  } finally {
+    try {
+      if (!_iteratorNormalCompletion7 && _iterator7.return) {
+        _iterator7.return();
+      }
+    } finally {
+      if (_didIteratorError7) {
+        throw _iteratorError7;
+      }
+    }
+  }
+
+  if (hidden.length) console.log('Something doesn\'t feel right about this dungeon...');
+
+  return { normal: doors, hidden: hidden, list: doors.concat(hidden) };
+
+  // Connectors store the `regions` they connect; get the one that's not `node`
+  function getNext(regions, node) {
+    var _iteratorNormalCompletion8 = true;
+    var _didIteratorError8 = false;
+    var _iteratorError8 = undefined;
+
+    try {
+      for (var _iterator8 = regions[Symbol.iterator](), _step8; !(_iteratorNormalCompletion8 = (_step8 = _iterator8.next()).done); _iteratorNormalCompletion8 = true) {
+        var region = _step8.value;
+
+        if (region !== node) return region;
+      }
+    } catch (err) {
+      _didIteratorError8 = true;
+      _iteratorError8 = err;
+    } finally {
+      try {
+        if (!_iteratorNormalCompletion8 && _iterator8.return) {
+          _iterator8.return();
+        }
+      } finally {
+        if (_didIteratorError8) {
+          throw _iteratorError8;
+        }
+      }
+    }
+
     return null;
   }
 
@@ -1061,172 +1349,54 @@ function findDoors(data, rooms, mazes) {
     var connectors = {};
     var prospects = [];
     // Normalize based on type
-    if (node.type === 'room') {
-      for (var id in node.edges) {
-        if (id in connectorRegions) prospects.push(id);
+    if (node.type === 'rect' || node.type === 'diamond') {
+      for (var _id4 in node.edges) {
+        if (_id4 in connectorRegions) prospects.push(_id4);
       }
     } else if (node.type === 'maze') {
-      for (var _id in node.ends) {
-        var cell = Cell.fromString(_id);
-        var neighbors = Cell.getNeighbors(cell).map(Cell.toString);
-        var _iteratorNormalCompletion6 = true;
-        var _didIteratorError6 = false;
-        var _iteratorError6 = undefined;
+      for (var _id5 in node.ends) {
+        var _cell2 = Cell.fromString(_id5);
+        var _neighbors = Cell.getNeighbors(_cell2).map(Cell.toString);
+        var _iteratorNormalCompletion9 = true;
+        var _didIteratorError9 = false;
+        var _iteratorError9 = undefined;
 
         try {
-          for (var _iterator6 = neighbors[Symbol.iterator](), _step6; !(_iteratorNormalCompletion6 = (_step6 = _iterator6.next()).done); _iteratorNormalCompletion6 = true) {
-            var neighbor = _step6.value;
+          for (var _iterator9 = _neighbors[Symbol.iterator](), _step9; !(_iteratorNormalCompletion9 = (_step9 = _iterator9.next()).done); _iteratorNormalCompletion9 = true) {
+            var _neighbor3 = _step9.value;
 
-            if (neighbor in connectorRegions) prospects.push(neighbor);
+            if (_neighbor3 in connectorRegions) prospects.push(_neighbor3);
           }
         } catch (err) {
-          _didIteratorError6 = true;
-          _iteratorError6 = err;
+          _didIteratorError9 = true;
+          _iteratorError9 = err;
         } finally {
           try {
-            if (!_iteratorNormalCompletion6 && _iterator6.return) {
-              _iterator6.return();
+            if (!_iteratorNormalCompletion9 && _iterator9.return) {
+              _iterator9.return();
             }
           } finally {
-            if (_didIteratorError6) {
-              throw _iteratorError6;
+            if (_didIteratorError9) {
+              throw _iteratorError9;
             }
           }
         }
       }
     }
-    var _iteratorNormalCompletion7 = true;
-    var _didIteratorError7 = false;
-    var _iteratorError7 = undefined;
-
-    try {
-      for (var _iterator7 = prospects[Symbol.iterator](), _step7; !(_iteratorNormalCompletion7 = (_step7 = _iterator7.next()).done); _iteratorNormalCompletion7 = true) {
-        var _id2 = _step7.value;
-
-        var regions = connectorRegions[_id2];
-        var next = getNext(regions, node);
-        if (next) {
-          var chance = Random.choose(25);
-          if (chance || !total.includes(next)) connectors[_id2] = next;
-        }
-      }
-    } catch (err) {
-      _didIteratorError7 = true;
-      _iteratorError7 = err;
-    } finally {
-      try {
-        if (!_iteratorNormalCompletion7 && _iterator7.return) {
-          _iterator7.return();
-        }
-      } finally {
-        if (_didIteratorError7) {
-          throw _iteratorError7;
-        }
-      }
-    }
-
-    return connectors;
-  }
-
-  while (stack.length) {
-    var node = stack.pop();
-    if (node.type === 'room' && disconnected.has(node)) disconnected.delete(node);
-    var connectors = getConnectors(node);
-    var connectorKeys = Object.keys(connectors);
-    if (connectorKeys.length) {
-      var connector = Random.choose(connectorKeys);
-      // console.log(connector)
-      var next = connectors[connector];
-      if (next) {
-        // Remove extraneous connectors
-        for (var id in next.cells) {
-          var cell = Cell.fromString(id);
-          var neighbors = Cell.getNeighbors(cell);
-          var _iteratorNormalCompletion8 = true;
-          var _didIteratorError8 = false;
-          var _iteratorError8 = undefined;
-
-          try {
-            for (var _iterator8 = neighbors[Symbol.iterator](), _step8; !(_iteratorNormalCompletion8 = (_step8 = _iterator8.next()).done); _iteratorNormalCompletion8 = true) {
-              var neighbor = _step8.value;
-
-              if (neighbor in connectorRegions && connectorRegions[neighbor].includes(node)) delete connectorRegions[neighbor];
-            }
-          } catch (err) {
-            _didIteratorError8 = true;
-            _iteratorError8 = err;
-          } finally {
-            try {
-              if (!_iteratorNormalCompletion8 && _iterator8.return) {
-                _iterator8.return();
-              }
-            } finally {
-              if (_didIteratorError8) {
-                throw _iteratorError8;
-              }
-            }
-          }
-        }
-        doors.push(connector);
-        stack.push(next);
-        track.push(next);
-        total.push(next);
-      }
-    } else {
-      if (track.length) stack.push(track.pop());
-    }
-  }
-
-  var _iteratorNormalCompletion9 = true;
-  var _didIteratorError9 = false;
-  var _iteratorError9 = undefined;
-
-  try {
-    for (var _iterator9 = disconnected[Symbol.iterator](), _step9; !(_iteratorNormalCompletion9 = (_step9 = _iterator9.next()).done); _iteratorNormalCompletion9 = true) {
-      var room = _step9.value;
-
-      var edges = Object.keys(room.edges).filter(function (edge) {
-        return edge in connectorRegions;
-      });
-      if (edges.length) {
-        var edge = Random.choose(edges);
-        doors.push(edge);
-      }
-    }
-  } catch (err) {
-    _didIteratorError9 = true;
-    _iteratorError9 = err;
-  } finally {
-    try {
-      if (!_iteratorNormalCompletion9 && _iterator9.return) {
-        _iterator9.return();
-      }
-    } finally {
-      if (_didIteratorError9) {
-        throw _iteratorError9;
-      }
-    }
-  }
-
-  return doors;
-}
-
-function fillEnds(data, ends) {
-  var stack = Object.keys(ends).map(Cell.fromString);
-  while (stack.length) {
-    var cell = stack.pop();
-    var neighbors = Cell.getNeighbors(cell);
-    var escapes = [];
     var _iteratorNormalCompletion10 = true;
     var _didIteratorError10 = false;
     var _iteratorError10 = undefined;
 
     try {
-      for (var _iterator10 = neighbors[Symbol.iterator](), _step10; !(_iteratorNormalCompletion10 = (_step10 = _iterator10.next()).done); _iteratorNormalCompletion10 = true) {
-        var neighbor = _step10.value;
+      for (var _iterator10 = prospects[Symbol.iterator](), _step10; !(_iteratorNormalCompletion10 = (_step10 = _iterator10.next()).done); _iteratorNormalCompletion10 = true) {
+        var _id6 = _step10.value;
 
-        var id = World$$1.getAt(data, neighbor);
-        if (id === FLOOR$2 || id === DOOR$2) escapes.push(neighbor);
+        var regions = connectorRegions[_id6];
+        var _next2 = getNext(regions, node);
+        if (_next2) {
+          var chance = Random.choose(50);
+          if (chance || !connected.has(_next2)) connectors[_id6] = _next2;
+        }
       }
     } catch (err) {
       _didIteratorError10 = true;
@@ -1243,6 +1413,43 @@ function fillEnds(data, ends) {
       }
     }
 
+    return connectors;
+  }
+}
+
+function fillEnds(data, ends) {
+  var stack = Object.keys(ends).map(Cell.fromString);
+  while (stack.length) {
+    var cell = stack.pop();
+    var neighbors = Cell.getNeighbors(cell);
+    var escapes = [];
+    var _iteratorNormalCompletion11 = true;
+    var _didIteratorError11 = false;
+    var _iteratorError11 = undefined;
+
+    try {
+      for (var _iterator11 = neighbors[Symbol.iterator](), _step11; !(_iteratorNormalCompletion11 = (_step11 = _iterator11.next()).done); _iteratorNormalCompletion11 = true) {
+        var neighbor = _step11.value;
+
+        var _id7 = World$$1.getAt(data, neighbor);
+        var tile = World$$1.tiles[_id7];
+        if (tile.walkable || tile.door) escapes.push(neighbor);
+      }
+    } catch (err) {
+      _didIteratorError11 = true;
+      _iteratorError11 = err;
+    } finally {
+      try {
+        if (!_iteratorNormalCompletion11 && _iterator11.return) {
+          _iterator11.return();
+        }
+      } finally {
+        if (_didIteratorError11) {
+          throw _iteratorError11;
+        }
+      }
+    }
+
     if (escapes.length === 1) {
       World$$1.setAt(data, cell, WALL$2);
       stack.push(escapes[0]);
@@ -1250,53 +1457,49 @@ function fillEnds(data, ends) {
   }
 }
 
-function createDungeon(size) {
-
-  if (!size % 2) throw new RangeError('Cannot create dungeon of even size ' + size);
+function generate$1(size) {
 
   var data = World$$1.fill(World$$1.create(size));
-  var entities = new Set();
-  var spawns = [];
+
+  // let room = findDiamondRoom(2, 4, size)
+  //
+  // for (let id in room.cells)
+  //   World.setAt(data, Cell.fromString(id), FLOOR)
+  //
+  // for (let id in room.edges)
+  //   World.setAt(data, Cell.fromString(id), DOOR)
 
   var rooms = findRooms(data);
-  var _iteratorNormalCompletion11 = true;
-  var _didIteratorError11 = false;
-  var _iteratorError11 = undefined;
-
-  try {
-    for (var _iterator11 = rooms.list[Symbol.iterator](), _step11; !(_iteratorNormalCompletion11 = (_step11 = _iterator11.next()).done); _iteratorNormalCompletion11 = true) {
-      var _room2 = _step11.value;
-
-      for (var id in _room2.cells) {
-        World$$1.setAt(data, Cell.fromString(id), FLOOR$2);
-      }
-    }
-  } catch (err) {
-    _didIteratorError11 = true;
-    _iteratorError11 = err;
-  } finally {
-    try {
-      if (!_iteratorNormalCompletion11 && _iterator11.return) {
-        _iterator11.return();
-      }
-    } finally {
-      if (_didIteratorError11) {
-        throw _iteratorError11;
-      }
-    }
-  }
-
-  var mazes = findMazes(data);
   var _iteratorNormalCompletion12 = true;
   var _didIteratorError12 = false;
   var _iteratorError12 = undefined;
 
   try {
-    for (var _iterator12 = mazes.list[Symbol.iterator](), _step12; !(_iteratorNormalCompletion12 = (_step12 = _iterator12.next()).done); _iteratorNormalCompletion12 = true) {
-      var _maze = _step12.value;
+    for (var _iterator12 = rooms.list[Symbol.iterator](), _step12; !(_iteratorNormalCompletion12 = (_step12 = _iterator12.next()).done); _iteratorNormalCompletion12 = true) {
+      var room = _step12.value;
+      var _iteratorNormalCompletion16 = true;
+      var _didIteratorError16 = false;
+      var _iteratorError16 = undefined;
 
-      for (var _id3 in _maze.cells) {
-        World$$1.setAt(data, Cell.fromString(_id3), FLOOR$2);
+      try {
+        for (var _iterator16 = room.cells[Symbol.iterator](), _step16; !(_iteratorNormalCompletion16 = (_step16 = _iterator16.next()).done); _iteratorNormalCompletion16 = true) {
+          var cell = _step16.value;
+
+          World$$1.setAt(data, cell, FLOOR$2);
+        }
+      } catch (err) {
+        _didIteratorError16 = true;
+        _iteratorError16 = err;
+      } finally {
+        try {
+          if (!_iteratorNormalCompletion16 && _iterator16.return) {
+            _iterator16.return();
+          }
+        } finally {
+          if (_didIteratorError16) {
+            throw _iteratorError16;
+          }
+        }
       }
     }
   } catch (err) {
@@ -1314,16 +1517,18 @@ function createDungeon(size) {
     }
   }
 
-  var doors = findDoors(data, rooms, mazes);
+  var mazes = findMazes(data);
   var _iteratorNormalCompletion13 = true;
   var _didIteratorError13 = false;
   var _iteratorError13 = undefined;
 
   try {
-    for (var _iterator13 = doors[Symbol.iterator](), _step13; !(_iteratorNormalCompletion13 = (_step13 = _iterator13.next()).done); _iteratorNormalCompletion13 = true) {
-      var _id4 = _step13.value;
+    for (var _iterator13 = mazes.list[Symbol.iterator](), _step13; !(_iteratorNormalCompletion13 = (_step13 = _iterator13.next()).done); _iteratorNormalCompletion13 = true) {
+      var maze = _step13.value;
 
-      World$$1.setAt(data, Cell.fromString(_id4), DOOR$2);
+      for (var _id8 in maze.cells) {
+        World$$1.setAt(data, Cell.fromString(_id8), FLOOR$2);
+      }
     }
   } catch (err) {
     _didIteratorError13 = true;
@@ -1340,33 +1545,186 @@ function createDungeon(size) {
     }
   }
 
+  var doors = findDoors(data, rooms, mazes);
+
+  var _iteratorNormalCompletion14 = true;
+  var _didIteratorError14 = false;
+  var _iteratorError14 = undefined;
+
+  try {
+    for (var _iterator14 = doors.normal[Symbol.iterator](), _step14; !(_iteratorNormalCompletion14 = (_step14 = _iterator14.next()).done); _iteratorNormalCompletion14 = true) {
+      var _id9 = _step14.value;
+
+      var type = DOOR$2;
+      if (Random.choose(10)) type = DOOR_OPEN$2;
+      World$$1.setAt(data, Cell.fromString(_id9), type);
+    }
+  } catch (err) {
+    _didIteratorError14 = true;
+    _iteratorError14 = err;
+  } finally {
+    try {
+      if (!_iteratorNormalCompletion14 && _iterator14.return) {
+        _iterator14.return();
+      }
+    } finally {
+      if (_didIteratorError14) {
+        throw _iteratorError14;
+      }
+    }
+  }
+
+  var _iteratorNormalCompletion15 = true;
+  var _didIteratorError15 = false;
+  var _iteratorError15 = undefined;
+
+  try {
+    for (var _iterator15 = doors.hidden[Symbol.iterator](), _step15; !(_iteratorNormalCompletion15 = (_step15 = _iterator15.next()).done); _iteratorNormalCompletion15 = true) {
+      var _id10 = _step15.value;
+
+      World$$1.setAt(data, Cell.fromString(_id10), DOOR_HIDDEN$2);
+    }
+  } catch (err) {
+    _didIteratorError15 = true;
+    _iteratorError15 = err;
+  } finally {
+    try {
+      if (!_iteratorNormalCompletion15 && _iterator15.return) {
+        _iterator15.return();
+      }
+    } finally {
+      if (_didIteratorError15) {
+        throw _iteratorError15;
+      }
+    }
+  }
+
   fillEnds(data, mazes.ends);
 
-  while (spawns.length < 10) {
-    var room = Random.choose(rooms.list);
-    var cell = Random.choose(room.cells);
-    if (!spawns.includes(cell)) spawns.push(cell);
-  }
-  spawns = spawns.map(Cell.fromString);
+  return { data: data, rooms: rooms };
+}
+
+function createDungeon(size) {
+
+  if (!size % 2) throw new RangeError('Cannot create dungeon of even size ' + size);
+
+  var _generate = generate$1(size),
+      data = _generate.data,
+      rooms = _generate.rooms;
+
+  var entities = [];
 
   function spawn(item, cell) {
+    if (!world.rooms) return null;
     if (!cell) {
-      var _room = Random.choose(world.rooms.list);
-      cell = Cell.fromString(Random.choose(_room.cells));
+      var valid = void 0;
+      do {
+        var room = Random.choose(world.rooms.list);
+        cell = Random.choose(room.cells);
+      } while (entitiesAt(cell).length);
     }
-    if (!isNaN(item)) {
-      World$$1.setAt(world.data, cell, item);
-    } else if ((typeof item === 'undefined' ? 'undefined' : _typeof(item)) === 'object') {
+    if (!isNaN(item)) setAt(cell, item);else if ((typeof item === 'undefined' ? 'undefined' : _typeof(item)) === 'object') {
       item.world = world;
       item.cell = cell;
       item.look();
-      entities.add(item);
+      entities.push(item);
     }
     return cell;
   }
 
-  var props = { size: size, data: data, rooms: rooms, entities: entities, spawns: spawns };
-  var methods = { spawn: spawn };
+  function entitiesAt(cell) {
+    return world.entities.filter(function (entity) {
+      return Cell.isEqual(entity.cell, cell);
+    });
+  }
+
+  function getAt(cell) {
+    return World$$1.getAt(world.data, cell);
+  }
+
+  function setAt(cell, value) {
+    return World$$1.setAt(world.data, cell, value);
+  }
+
+  function findPath(start, goal) {
+    var entity = null;
+    if (!Array.isArray(start) && (typeof start === 'undefined' ? 'undefined' : _typeof(start)) === 'object') {
+      entity = start;
+      start = entity.cell;
+    }
+    var cells = {};
+    if (!entity) {
+      var _iteratorNormalCompletion17 = true;
+      var _didIteratorError17 = false;
+      var _iteratorError17 = undefined;
+
+      try {
+        for (var _iterator17 = world.entities[Symbol.iterator](), _step17; !(_iteratorNormalCompletion17 = (_step17 = _iterator17.next()).done); _iteratorNormalCompletion17 = true) {
+          var _entity = _step17.value;
+
+          cells[_entity.cell] = Infinity;
+        }
+      } catch (err) {
+        _didIteratorError17 = true;
+        _iteratorError17 = err;
+      } finally {
+        try {
+          if (!_iteratorNormalCompletion17 && _iterator17.return) {
+            _iterator17.return();
+          }
+        } finally {
+          if (_didIteratorError17) {
+            throw _iteratorError17;
+          }
+        }
+      }
+    } else {
+      (function () {
+        var world = entity.world;
+        world.data.forEach(function (id, index) {
+          var cell = Cell.fromIndex(index, world.size);
+          if (!entity.known[cell] || world.entitiesAt(cell).filter(function (entity) {
+            return !entity.walkable;
+          }).length) cells[cell] = Infinity;
+        });
+      })();
+    }
+    var costs = { tiles: World$$1.costs, cells: cells };
+    var path = World$$1.findPath(world.data, start, goal, costs);
+    return path;
+  }
+
+  function openDoor(cell) {
+    var data = world.data.slice();
+    var id = getAt(cell);
+    if (World$$1.tiles[id].door) World$$1.setAt(data, cell, DOOR_OPEN$2);
+    world.data = data;
+    return world;
+  }
+
+  function closeDoor(cell) {
+    var data = world.data.slice();
+    var id = getAt(cell);
+    if (World$$1.tiles[id].door) World$$1.setAt(data, cell, DOOR$2);
+    world.data = data;
+    return world;
+  }
+
+  function toggleDoor(cell) {
+    var data = world.data.slice();
+    var oldId = getAt(cell);
+    var newId = DOOR_OPEN$2;
+    var tile = World$$1.tiles[id];
+    if (tile.door) {
+      if (tile.walkable) newId = DOOR$2;
+      World$$1.setAt(data, cell, newId);
+    }
+    world.data = data;
+    return world;
+  }
+
+  var props = { size: size, data: data, rooms: rooms, entities: entities };
+  var methods = { spawn: spawn, entitiesAt: entitiesAt, getAt: getAt, setAt: setAt, findPath: findPath, openDoor: openDoor, closeDoor: closeDoor, toggleDoor: toggleDoor };
 
   var world = Object.assign({}, props, methods);
   return world;
@@ -1377,22 +1735,25 @@ var STAIRS = World$$1.STAIRS;
 
 
 var sprites = {
-  none: {},
   floor: {
     char: String.fromCharCode(183),
-    color: 'olive'
+    color: 'white'
   },
   wall: {
     char: '#',
-    color: 'darkslategray'
+    color: 'teal'
   },
   door: {
     char: '+',
-    color: 'sienna'
+    color: 'yellow'
   },
   door_open: {
     char: '/',
-    color: 'sienna'
+    color: 'yellow'
+  },
+  door_hidden: {
+    char: '#',
+    color: 'teal'
   },
   stairs: {
     char: '>',
@@ -1401,20 +1762,78 @@ var sprites = {
   hero: {
     char: '@',
     color: 'white'
+  },
+  wyrm: {
+    char: 'd',
+    color: 'lime'
+  },
+  axolotl: {
+    char: 'a',
+    color: 'cyan'
+  },
+  lullaby: {
+    char: 'o',
+    color: 'green'
+  },
+  gatling: {
+    char: 'G',
+    color: 'white'
+  },
+  wasp: {
+    char: 'b',
+    color: 'yellow'
+  },
+  replica: {
+    char: 'J',
+    color: 'blue'
   }
 };
 
+var enemies = ['wyrm', 'axolotl', 'lullaby', 'gatling', 'wasp', 'replica'];
+
 function generate() {
   var world = Generator$$1.createDungeon(WORLD_SIZE);
-  var hero = Entity$$1.create(sprites.hero);
-  world.spawn(hero);
+  var hero = Entity$$1.create('hero', sprites.hero);
   world.spawn(STAIRS);
+  world.spawn(hero);
+  var i = 10;
+  while (i--) {
+    var type = Random.choose(enemies);
+    world.spawn(Entity$$1.create(type, sprites[type]));
+  }
+  var _iteratorNormalCompletion = true;
+  var _didIteratorError = false;
+  var _iteratorError = undefined;
+
+  try {
+    for (var _iterator = world.entities[Symbol.iterator](), _step; !(_iteratorNormalCompletion = (_step = _iterator.next()).done); _iteratorNormalCompletion = true) {
+      var entity = _step.value;
+
+      entity.look();
+    }
+  } catch (err) {
+    _didIteratorError = true;
+    _iteratorError = err;
+  } finally {
+    try {
+      if (!_iteratorNormalCompletion && _iterator.return) {
+        _iterator.return();
+      }
+    } finally {
+      if (_didIteratorError) {
+        throw _iteratorError;
+      }
+    }
+  }
+
   return { world: world, hero: hero };
 }
 
 new Vue({
   el: '#app',
-  data: generate,
+  data: function data() {
+    return Object.assign(generate(), { debug: false });
+  },
   methods: {
     onclick: function onclick(index) {
       var world = this.world,
@@ -1426,9 +1845,7 @@ new Vue({
       var target = [targetX, targetY];
 
       if (Cell.isEqual(cell, target)) {
-        if (World$$1.getAt(world.data, cell) === STAIRS) {
-          this.descend();
-        }
+        if (world.getAt(cell) === STAIRS) this.descend();
         return;
       }
 
@@ -1450,52 +1867,37 @@ new Vue({
   computed: {
     view: function view() {
       var world = this.world,
-          hero = this.hero;
+          hero = this.hero,
+          debug = this.debug;
 
       var view = [];
       world.data.forEach(function (id, index) {
         var cell = Cell.fromIndex(index, WORLD_SIZE);
         var char = ' ';
         var color = 'gray';
-        var tile = hero.known[cell];
-        if (tile) {
-          var sprite = sprites[tile];
+        var type = hero.known[cell];
+        if (!type && debug) type = World$$1.tiles[world.getAt(cell)].name;
+        if (type) {
+          var sprite = sprites[type];
           char = sprite.char;
           if (hero.seeing[cell]) color = sprite.color;
         }
         view.push({ char: char, color: color });
       });
-      var _iteratorNormalCompletion = true;
-      var _didIteratorError = false;
-      var _iteratorError = undefined;
-
-      try {
-        for (var _iterator = world.entities[Symbol.iterator](), _step; !(_iteratorNormalCompletion = (_step = _iterator.next()).done); _iteratorNormalCompletion = true) {
-          var entity = _step.value;
-
-          var index = Cell.toIndex(entity.cell, WORLD_SIZE);
-          view[index] = entity.sprite;
-        }
-      } catch (err) {
-        _didIteratorError = true;
-        _iteratorError = err;
-      } finally {
-        try {
-          if (!_iteratorNormalCompletion && _iterator.return) {
-            _iterator.return();
-          }
-        } finally {
-          if (_didIteratorError) {
-            throw _iteratorError;
-          }
-        }
-      }
-
       return view;
     }
   },
   mounted: function mounted() {
-    this.$el.style.fontSize = 'calc(100vmin / ' + WORLD_SIZE + ')';
+    var vue = this;
+    vue.$el.style.fontSize = 'calc(100vmin / ' + WORLD_SIZE + ')';
+    function handleKeys(event) {
+      var flag = event.type === 'keydown';
+      if (event.code === 'Space' && vue.debug !== flag) {
+        vue.debug = flag;
+      }
+    }
+    window.addEventListener('keydown', handleKeys);
+    window.addEventListener('keyup', handleKeys);
   },
   components: {
     game: {

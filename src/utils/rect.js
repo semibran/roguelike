@@ -29,7 +29,7 @@ function getCorners(rect, exclusive) {
   var [ x, y, w, h ] = rect
   if (exclusive)
     x--, y--, w += 2, h += 2
-  return [ [ x, y ], [ x + w, y ], [ x, y + h ], [ x + w, y + h ] ]
+  return [ [x, y], [x + w - 1, y], [x, y + h - 1], [x + w - 1, y + h - 1] ]
 }
 
 function getEdges(rect, exclusive) {

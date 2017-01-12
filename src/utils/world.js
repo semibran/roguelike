@@ -1,6 +1,6 @@
 import { Cell, Rect } from './index'
 
-const [FLOOR, WALL, DOOR, DOOR_OPEN, STAIRS] = [0, 1, 2, 3, 4]
+const [FLOOR, WALL, DOOR, DOOR_OPEN, DOOR_HIDDEN, STAIRS] = [0, 1, 2, 3, 4, 5]
 const tiles = [
   {
     name: 'floor',
@@ -21,16 +21,35 @@ const tiles = [
     door: true
   },
   {
+    name: 'door_hidden',
+    opaque: true,
+    door: true,
+    hidden: true
+  },
+  {
     name: 'stairs',
     walkable: true,
     stairs: true
   }
 ]
 
-let costs = [0, Infinity, 2, 1, 0]
+let costs = []
+for (let tile of tiles) {
+  let cost = 0
+  if (!tile.walkable && !tile.door)
+    cost = Infinity
+  if (tile.hidden)
+    cost = 1000
+  if (tile.door) {
+    cost++
+    if (!tile.walkable)
+      cost++
+  }
+  costs.push(cost)
+}
 
-const constants = { FLOOR, WALL, DOOR, DOOR_OPEN, STAIRS, tiles, costs }
-const methods   = { create, fill, clear, getAt, setAt, getSize, findPath, openDoor, closeDoor, toggleDoor }
+const constants = { FLOOR, WALL, DOOR, DOOR_OPEN, DOOR_HIDDEN, STAIRS, tiles, costs }
+const methods   = { create, fill, clear, getAt, setAt, getSize, findPath }
 const World     = Object.assign({}, constants, methods)
 
 export default World
@@ -95,8 +114,22 @@ function getSize(data) {
   return sqrt(data.length)
 }
 
-function findPath(data, start, goal, costs) {
-  costs = costs || World.costs
+function findPath(data, start, goal, costs, diagonals) {
+
+  if (!costs)
+    costs = {
+      tiles: World.costs,
+      cells: {}
+    }
+
+  if (!costs.tiles)
+    costs = {
+      tiles: costs,
+      cells: {}
+    }
+
+  if (costs.tiles[ World.getAt(data, goal) ] === Infinity)
+    return null
 
   let path = []
 
@@ -134,14 +167,16 @@ function findPath(data, start, goal, costs) {
       return path
     }
     closed[cell] = true
-    for ( let neighbor of Cell.getNeighbors(cell) ) {
+    for ( let neighbor of Cell.getNeighbors(cell, diagonals) ) {
       if (!Cell.isInside(neighbor, size) || neighbor in closed)
         continue
-      let cost = costs[ getAt(data, neighbor) ] || 0
-      if (cost === Infinity)
+      let id = neighbor.toString()
+      let tileCost = costs.tiles[ getAt(data, neighbor) ] || 0
+      let cellCost = costs.cells[neighbor] || 0
+      let cost = tileCost + cellCost
+      if (!id === goalId && cost === Infinity)
         continue
       let g = scores.g[cell] + 1 + cost
-      let id = neighbor.toString()
       if ( !opened.includes(id) )
         opened.push(id)
       else if ( g >= scores.g[neighbor] )
@@ -154,30 +189,4 @@ function findPath(data, start, goal, costs) {
 
   return null
 
-}
-
-function openDoor(data, cell) {
-  data = data.slice()
-  let id = World.getAt(data, cell)
-  if (id === DOOR || id === DOOR_OPEN)
-    World.setAt(data, cell, DOOR_OPEN)
-  return data
-}
-
-function closeDoor(data, cell) {
-  data = data.slice()
-  let id = World.getAt(data, cell)
-  if (id === DOOR || id === DOOR_OPEN)
-    World.setAt(data, cell, DOOR)
-  return data
-}
-
-function toggleDoor(data, cell) {
-  data = data.slice()
-  let id = World.getAt(data, cell)
-  if (id === DOOR)
-    World.setAt(data, cell, DOOR_OPEN)
-  if (id === DOOR_OPEN)
-    World.setAt(data, cell, DOOR)
-  return data
 }

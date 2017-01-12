@@ -1,25 +1,28 @@
 import { Generator, World, Entity, Cell, Rect, Random } from './utils/index'
 
 const WORLD_SIZE = 25
-const {FLOOR, WALL, DOOR, DOOR_OPEN, STAIRS} = World
+const {FLOOR, WALL, DOOR, DOOR_OPEN, DOOR_HIDDEN, STAIRS} = World
 
 const sprites = {
-  none: {},
   floor: {
     char: String.fromCharCode(183),
-    color: 'olive'
+    color: 'white'
   },
   wall: {
     char: '#',
-    color: 'darkslategray'
+    color: 'teal'
   },
   door: {
     char: '+',
-    color: 'sienna'
+    color: 'yellow'
   },
   door_open: {
     char: '/',
-    color: 'sienna'
+    color: 'yellow'
+  },
+  door_hidden: {
+    char: '#',
+    color: 'teal'
   },
   stairs: {
     char: '>',
@@ -28,20 +31,55 @@ const sprites = {
   hero: {
     char: '@',
     color: 'white'
+  },
+  wyrm: {
+    char: 'd',
+    color: 'lime'
+  },
+  axolotl: {
+    char: 'a',
+    color: 'cyan'
+  },
+  lullaby: {
+    char: 'o',
+    color: 'green'
+  },
+  gatling: {
+    char: 'G',
+    color: 'white'
+  },
+  wasp: {
+    char: 'b',
+    color: 'yellow'
+  },
+  replica: {
+    char: 'J',
+    color: 'blue'
   }
 }
 
+const enemies = ['wyrm', 'axolotl', 'lullaby', 'gatling', 'wasp', 'replica']
+
 function generate() {
   let world = Generator.createDungeon(WORLD_SIZE)
-  let hero = Entity.create(sprites.hero)
-  world.spawn(hero)
+  let hero = Entity.create('hero', sprites.hero)
   world.spawn(STAIRS)
+  world.spawn(hero)
+  let i = 10
+  while (i--) {
+    let type = Random.choose(enemies)
+    world.spawn( Entity.create(type, sprites[type]) )
+  }
+  for (let entity of world.entities)
+    entity.look()
   return {world, hero}
 }
 
 new Vue({
   el: '#app',
-  data: generate,
+  data: function () {
+    return Object.assign(generate(), { debug: false })
+  },
   methods: {
     onclick: function (index) {
       let {world, hero} = this
@@ -51,9 +89,8 @@ new Vue({
       let target = [targetX, targetY]
 
       if ( Cell.isEqual(cell, target) ) {
-        if (World.getAt(world.data, cell) === STAIRS) {
+        if (world.getAt(cell) === STAIRS)
           this.descend()
-        }
         return
       }
 
@@ -79,30 +116,37 @@ new Vue({
   },
   computed: {
     view: function () {
-      let {world, hero} = this
+      let {world, hero, debug} = this
       let view = []
       world.data.forEach((id, index) => {
         let cell = Cell.fromIndex(index, WORLD_SIZE)
         let char = ' '
         let color = 'gray'
-        let tile = hero.known[cell]
-        if (tile) {
-          let sprite = sprites[tile]
+        let type = hero.known[cell]
+        if (!type && debug)
+          type = World.tiles[ world.getAt(cell) ].name
+        if (type) {
+          let sprite = sprites[type]
           char = sprite.char
           if ( hero.seeing[cell] )
             color = sprite.color
         }
         view.push( {char, color} )
       })
-      for (let entity of world.entities) {
-        let index = Cell.toIndex(entity.cell, WORLD_SIZE)
-        view[index] = entity.sprite
-      }
       return view
     }
   },
   mounted: function () {
-    this.$el.style.fontSize = `calc(100vmin / ${WORLD_SIZE})`
+    let vue = this
+    vue.$el.style.fontSize = `calc(100vmin / ${WORLD_SIZE})`
+    function handleKeys(event) {
+      let flag = event.type === 'keydown'
+      if (event.code === 'Space' && vue.debug !== flag) {
+        vue.debug = flag
+      }
+    }
+    window.addEventListener('keydown', handleKeys)
+    window.addEventListener('keyup',   handleKeys)
   },
   components: {
     game: {

@@ -26,7 +26,7 @@ function getOctant(data, start, range, octant) {
     for (let col = 0; col <= row; col++) {
       let [transformX, transformY] = transformOctant(row, col, octant)
       let cell = [x + transformX, y + transformY]
-      if ( !Cell.isInside(cell, size) )
+      if ( !Cell.isInside(cell, size) || transformX * transformX + transformY * transformY > range * range )
         break
       if (!fullShadow) {
         let projection = getProjection(row, col)
