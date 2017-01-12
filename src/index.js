@@ -1,4 +1,4 @@
-import { Generator, World, Entity, Cell, Rect, Random } from './utils/index'
+import { Generator, World, Entity, Cell, Rect, RNG } from './utils/index'
 
 const WORLD_SIZE = 25
 const {FLOOR, WALL, DOOR, DOOR_OPEN, DOOR_HIDDEN, STAIRS} = World
@@ -58,16 +58,25 @@ const sprites = {
   }
 }
 
+// TODO: Change these to key/value pairs with data on each enemy
 const enemies = ['wyrm', 'axolotl', 'lullaby', 'gatling', 'wasp', 'replica']
 
+// Use `RNG.create(seed)` to seed the RNG, where `seed` is some
+// number like `9820.083045702477`. Seeding the RNG allows you
+// to achieve the same dungeon multiple times for debugging.
+//
+// Leave empty for a random seed.
+//
+const rng = RNG.create()
+
 function generate() {
-  let world = Generator.createDungeon(WORLD_SIZE)
+  let world = Generator.createDungeon(WORLD_SIZE, rng)
   let hero = Entity.create('hero', sprites.hero)
   world.spawn(STAIRS)
   world.spawn(hero)
   let i = 10
   while (i--) {
-    let type = Random.choose(enemies)
+    let type = rng.choose(enemies)
     world.spawn( Entity.create(type, sprites[type]) )
   }
   for (let entity of world.entities)

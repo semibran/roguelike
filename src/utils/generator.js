@@ -1,14 +1,16 @@
-import { Random, World, Cell, Rect } from './index'
+import { RNG, World, Cell, Rect } from './index'
 
 const { FLOOR, WALL, DOOR, DOOR_OPEN, DOOR_HIDDEN, STAIRS } = World
 
 export default { createDungeon }
 
+let rng = RNG.create()
+
 function findRoom(min, max, worldSize) {
-  var w = Random.get((max - min) / 2 + 1) * 2 + min
-  var h = Random.get((max - min) / 2 + 1) * 2 + min
-  var x = Random.get((worldSize - w) / 2) * 2 + 1
-  var y = Random.get((worldSize - h) / 2) * 2 + 1
+  var w = rng.get((max - min) / 2 + 1) * 2 + min
+  var h = rng.get((max - min) / 2 + 1) * 2 + min
+  var x = rng.get((worldSize - w) / 2) * 2 + 1
+  var y = rng.get((worldSize - h) / 2) * 2 + 1
   return [x, y, w, h]
 }
 
@@ -76,9 +78,9 @@ let Diamond = function () {
 }()
 
 function findDiamondRoom(min, max, worldSize) {
-  let radius = Random.get((max - min) / 2 + 1) * 2 + min
+  let radius = rng.get((max - min) / 2 + 1) * 2 + min
   let nodes = findNodes(worldSize, radius).map(Cell.fromString)
-  let diamond = Random.choose(nodes)
+  let diamond = rng.choose(nodes)
   diamond.push(radius)
   return diamond
 }
@@ -89,18 +91,18 @@ function findRooms(data, maxRatio) {
   let area = size * size
   let min = Math.round(size / 5)
   let max = Math.round(size / 4)
-  let valid
+  let valid = true
   let rooms = { cells: {}, edges: {}, rects: {}, diamonds: {}, list: [] }
   let total = 0
   let fails = 0
   let failed = {}
-  do {
+  while (valid && total / area < maxRatio) {
     let type = 'rect'
     let shape
     do {
       valid = true
       let cells
-      if (Random.choose(100))
+      if ( rng.choose(100) )
         type = 'diamond'
       if (type === 'rect') {
         shape = findRoom(min, max, size)
@@ -142,7 +144,7 @@ function findRooms(data, maxRatio) {
       rooms.list.push(room)
       total += room.cells.length
     }
-  } while (valid && total / area < maxRatio)
+  }
   return rooms
 }
 
@@ -171,7 +173,7 @@ function findMazes(data) {
   let nodes = new Set( findNodes(data).map(Cell.toString) )
   while (nodes.size) {
     let maze = { cells: {}, ends: {}, type: 'maze' }
-    let start = Random.choose( [...nodes] )
+    let start = rng.choose( [...nodes] )
     let id    = Cell.fromString(start)
     let stack = [id]
     let track = [id]
@@ -188,7 +190,7 @@ function findMazes(data) {
         return !nonwalls.length
       })
       if (neighbors.length) {
-        let neighbor = Random.choose(neighbors)
+        let neighbor = rng.choose(neighbors)
         let [neighborX, neighborY] = neighbor
         let [distX, distY] = [neighborX - nodeX, neighborY - nodeY]
         let [stepX, stepY] = [ distX / (Math.abs(distX) || 1), distY / (Math.abs(distY) || 1) ]
@@ -234,7 +236,7 @@ function findConnectors(data, rooms, mazes) {
 function findDoors(data, rooms, mazes) {
 
   let connectorRegions = findConnectors(data, rooms, mazes)
-  let start = Random.choose(rooms.list)
+  let start = rng.choose(rooms.list)
   let stack = [start]
   let track = [start]
   let doors = []
@@ -250,7 +252,7 @@ function findDoors(data, rooms, mazes) {
     let connectors = getConnectors(node)
     let connectorKeys = Object.keys(connectors)
     if (connectorKeys.length) {
-      let connector = Random.choose(connectorKeys)
+      let connector = rng.choose(connectorKeys)
       let next = connectors[connector]
       if (next) {
         // Remove extraneous connectors
@@ -276,7 +278,7 @@ function findDoors(data, rooms, mazes) {
   for (let room of disconnected) {
     let edges = Object.keys(room.edges).filter( (edge) => edge in connectorRegions )
     if (edges.length) {
-      let edge = Random.choose(edges)
+      let edge = rng.choose(edges)
       hidden.push(edge)
     }
   }
@@ -316,7 +318,7 @@ function findDoors(data, rooms, mazes) {
       let regions = connectorRegions[id]
       let next = getNext(regions, node)
       if (next) {
-        let chance = Random.choose(50)
+        let chance = rng.choose(50)
         if ( chance || !connected.has(next) )
           connectors[id] = next
       }
@@ -345,17 +347,9 @@ function fillEnds(data, ends) {
   }
 }
 
-function generate(size) {
+function generate(size, seed) {
 
   let data = World.fill( World.create(size) )
-
-  // let room = findDiamondRoom(2, 4, size)
-  //
-  // for (let id in room.cells)
-  //   World.setAt(data, Cell.fromString(id), FLOOR)
-  //
-  // for (let id in room.edges)
-  //   World.setAt(data, Cell.fromString(id), DOOR)
 
   let rooms = findRooms(data)
   for (let room of rooms.list) {
@@ -368,11 +362,11 @@ function generate(size) {
     for (let id in maze.cells)
       World.setAt(data, Cell.fromString(id), FLOOR)
 
-  let doors = findDoors(data, rooms, mazes)
+  let doors = findDoors(data, rooms, mazes,)
 
   for (let id of doors.normal) {
     let type = DOOR
-    if (Random.choose(10))
+    if ( rng.choose(10) )
       type = DOOR_OPEN
     World.setAt(data, Cell.fromString(id), type)
   }
@@ -386,12 +380,22 @@ function generate(size) {
 
 }
 
-function createDungeon(size) {
+function createDungeon(size, seed) {
 
   if (!size % 2)
     throw new RangeError(`Cannot create dungeon of even size ${size}`)
 
-  let {data, rooms} = generate(size)
+  if (typeof seed === 'object') {
+    rng = seed
+    seed = rng.seed()
+  } else if ( isNaN(seed) ) {
+    seed = rng.get()
+    rng.seed(seed)
+  }
+
+  console.log('Seed:', seed)
+
+  let {data, rooms} = generate(size, seed)
   let entities = []
 
   function spawn(item, cell) {
@@ -400,8 +404,8 @@ function createDungeon(size) {
     if (!cell) {
       let valid
       do {
-        let room = Random.choose(world.rooms.list)
-        cell = Random.choose(room.cells)
+        let room = rng.choose(world.rooms.list)
+        cell = rng.choose(room.cells)
       } while (entitiesAt(cell).length)
     }
     if ( !isNaN(item) )

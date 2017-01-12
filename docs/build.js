@@ -4,6 +4,44 @@
   (factory());
 }(this, (function () { 'use strict';
 
+var RNG = create();
+RNG.create = create;
+
+function create(initialSeed) {
+
+  if (isNaN(initialSeed)) initialSeed = Math.random() * 10000;
+
+  var currentSeed = initialSeed;
+
+  return { get: get, choose: choose, seed: seed };
+
+  function get(min, max) {
+    var a = arguments.length;
+    if (a === 0) {
+      var x = Math.sin(currentSeed++) * 10000;
+      return x - Math.floor(x);
+    } else if (a === 1) max = min, min = 0;
+    if (min > max) {
+      
+      var _ref = [max, min];
+      min = _ref[0];
+      max = _ref[1];
+    }return Math.floor(get() * (max - min)) + min;
+  }
+
+  function choose(array) {
+    if (Array.isArray(array) && !array.length) return null;
+    if (!isNaN(array)) return !get(array);
+    if (!array) array = [0, 1];
+    return array[get(array.length)];
+  }
+
+  function seed(newSeed) {
+    if (!isNaN(newSeed)) initialSeed = currentSeed = newSeed;
+    return initialSeed;
+  }
+}
+
 var _typeof = typeof Symbol === "function" && typeof Symbol.iterator === "symbol" ? function (obj) {
   return typeof obj;
 } : function (obj) {
@@ -122,27 +160,6 @@ var toConsumableArray = function (arr) {
     return Array.from(arr);
   }
 };
-
-var Random = { get: get$$1, choose: choose };
-
-function get$$1(min, max) {
-  var a = arguments.length;
-  if (a === 0) return Math.random();else if (a === 1) max = min, min = 0;
-  if (min > max) {
-    
-    var _ref = [max, min];
-    min = _ref[0];
-    max = _ref[1];
-  }return Math.floor(get$$1() * (max - min)) + min;
-}
-
-function choose(array) {
-  if (Array.isArray(array) && !array.length) return null;
-  if (!isNaN(array)) return !get$$1(array);
-  if (!Array.isArray(array) && (typeof array === 'undefined' ? 'undefined' : _typeof(array)) === 'object') array = Object.keys(array);
-  if (!array) array = [0, 1];
-  return array[get$$1(array.length)];
-}
 
 var DIRECTIONS = [[-1, 0], [-1, -1], [0, -1], [1, -1], [1, 0], [1, 1], [0, 1], [-1, 1]];
 var LEFT = DIRECTIONS[0];
@@ -440,7 +457,7 @@ try {
 }
 
 var constants$1 = { FLOOR: FLOOR$1, WALL: WALL$1, DOOR: DOOR$1, DOOR_OPEN: DOOR_OPEN$1, DOOR_HIDDEN: DOOR_HIDDEN$1, STAIRS: STAIRS$1, tiles: tiles, costs: costs };
-var methods$1 = { create: create, fill: fill, clear: clear, getAt: getAt, setAt: setAt, getSize: getSize, findPath: findPath };
+var methods$1 = { create: create$1, fill: fill, clear: clear, getAt: getAt, setAt: setAt, getSize: getSize, findPath: findPath };
 var World$$1 = Object.assign({}, constants$1, methods$1);
 
 var sqrt = function (cache) {
@@ -455,7 +472,7 @@ var sqrt = function (cache) {
   };
 }();
 
-function create(size) {
+function create$1(size) {
   return new Uint8ClampedArray(size * size);
 }
 
@@ -634,9 +651,9 @@ function findPath(data, start, goal, costs, diagonals) {
   return null;
 }
 
-var FOV$$1 = { get: get$2 };
+var FOV$$1 = { get: get$1 };
 
-function get$2(data, start, range) {
+function get$1(data, start, range) {
   var cells = [];
   var i = 8;
   while (i--) {
@@ -733,9 +750,9 @@ function transformOctant(row, col, octant) {
   }
 }
 
-var Entity$$1 = { create: create$1 };
+var Entity$$1 = { create: create$2 };
 
-function create$1(type, sprite, walkable) {
+function create$2(type, sprite, walkable) {
 
   walkable = !!walkable;
 
@@ -859,11 +876,13 @@ var DOOR_HIDDEN$2 = World$$1.DOOR_HIDDEN;
 
 var Generator$$1 = { createDungeon: createDungeon };
 
+var rng$1 = RNG.create();
+
 function findRoom(min, max, worldSize) {
-  var w = Random.get((max - min) / 2 + 1) * 2 + min;
-  var h = Random.get((max - min) / 2 + 1) * 2 + min;
-  var x = Random.get((worldSize - w) / 2) * 2 + 1;
-  var y = Random.get((worldSize - h) / 2) * 2 + 1;
+  var w = rng$1.get((max - min) / 2 + 1) * 2 + min;
+  var h = rng$1.get((max - min) / 2 + 1) * 2 + min;
+  var x = rng$1.get((worldSize - w) / 2) * 2 + 1;
+  var y = rng$1.get((worldSize - h) / 2) * 2 + 1;
   return [x, y, w, h];
 }
 
@@ -959,9 +978,9 @@ var Diamond = function () {
 }();
 
 function findDiamondRoom(min, max, worldSize) {
-  var radius = Random.get((max - min) / 2 + 1) * 2 + min;
+  var radius = rng$1.get((max - min) / 2 + 1) * 2 + min;
   var nodes = findNodes(worldSize, radius).map(Cell.fromString);
-  var diamond = Random.choose(nodes);
+  var diamond = rng$1.choose(nodes);
   diamond.push(radius);
   return diamond;
 }
@@ -972,18 +991,18 @@ function findRooms(data, maxRatio) {
   var area = size * size;
   var min = Math.round(size / 5);
   var max = Math.round(size / 4);
-  var valid = void 0;
+  var valid = true;
   var rooms = { cells: {}, edges: {}, rects: {}, diamonds: {}, list: [] };
   var total = 0;
   var fails = 0;
   var failed = {};
-  do {
+  while (valid && total / area < maxRatio) {
     var type = 'rect';
     var shape = void 0;
     do {
       valid = true;
       var cells = void 0;
-      if (Random.choose(100)) type = 'diamond';
+      if (rng$1.choose(100)) type = 'diamond';
       if (type === 'rect') {
         shape = findRoom(min, max, size);
         cells = Rect.getBorder(shape);
@@ -1091,7 +1110,7 @@ function findRooms(data, maxRatio) {
       rooms.list.push(room);
       total += room.cells.length;
     }
-  } while (valid && total / area < maxRatio);
+  }
   return rooms;
 }
 
@@ -1125,7 +1144,7 @@ function findMazes(data) {
   var nodes = new Set(findNodes(data).map(Cell.toString));
   while (nodes.size) {
     var maze = { cells: {}, ends: {}, type: 'maze' };
-    var start = Random.choose([].concat(toConsumableArray(nodes)));
+    var start = rng$1.choose([].concat(toConsumableArray(nodes)));
     var _id = Cell.fromString(start);
     var stack = [_id];
     var track = [_id];
@@ -1147,7 +1166,7 @@ function findMazes(data) {
         return !nonwalls.length;
       });
       if (neighbors.length) {
-        var neighbor = Random.choose(neighbors);
+        var neighbor = rng$1.choose(neighbors);
 
         var _neighbor = slicedToArray(neighbor, 2),
             neighborX = _neighbor[0],
@@ -1222,7 +1241,7 @@ function findConnectors(data, rooms, mazes) {
 function findDoors(data, rooms, mazes) {
 
   var connectorRegions = findConnectors(data, rooms, mazes);
-  var start = Random.choose(rooms.list);
+  var start = rng$1.choose(rooms.list);
   var stack = [start];
   var track = [start];
   var doors = [];
@@ -1237,7 +1256,7 @@ function findDoors(data, rooms, mazes) {
     var connectors = getConnectors(node);
     var connectorKeys = Object.keys(connectors);
     if (connectorKeys.length) {
-      var connector = Random.choose(connectorKeys);
+      var connector = rng$1.choose(connectorKeys);
       var next = connectors[connector];
       if (next) {
         // Remove extraneous connectors
@@ -1291,7 +1310,7 @@ function findDoors(data, rooms, mazes) {
         return edge in connectorRegions;
       });
       if (edges.length) {
-        var edge = Random.choose(edges);
+        var edge = rng$1.choose(edges);
         hidden.push(edge);
       }
     }
@@ -1394,7 +1413,7 @@ function findDoors(data, rooms, mazes) {
         var regions = connectorRegions[_id6];
         var _next2 = getNext(regions, node);
         if (_next2) {
-          var chance = Random.choose(50);
+          var chance = rng$1.choose(50);
           if (chance || !connected.has(_next2)) connectors[_id6] = _next2;
         }
       }
@@ -1457,17 +1476,9 @@ function fillEnds(data, ends) {
   }
 }
 
-function generate$1(size) {
+function generate$1(size, seed) {
 
   var data = World$$1.fill(World$$1.create(size));
-
-  // let room = findDiamondRoom(2, 4, size)
-  //
-  // for (let id in room.cells)
-  //   World.setAt(data, Cell.fromString(id), FLOOR)
-  //
-  // for (let id in room.edges)
-  //   World.setAt(data, Cell.fromString(id), DOOR)
 
   var rooms = findRooms(data);
   var _iteratorNormalCompletion12 = true;
@@ -1556,7 +1567,7 @@ function generate$1(size) {
       var _id9 = _step14.value;
 
       var type = DOOR$2;
-      if (Random.choose(10)) type = DOOR_OPEN$2;
+      if (rng$1.choose(10)) type = DOOR_OPEN$2;
       World$$1.setAt(data, Cell.fromString(_id9), type);
     }
   } catch (err) {
@@ -1604,11 +1615,21 @@ function generate$1(size) {
   return { data: data, rooms: rooms };
 }
 
-function createDungeon(size) {
+function createDungeon(size, seed) {
 
   if (!size % 2) throw new RangeError('Cannot create dungeon of even size ' + size);
 
-  var _generate = generate$1(size),
+  if ((typeof seed === 'undefined' ? 'undefined' : _typeof(seed)) === 'object') {
+    rng$1 = seed;
+    seed = rng$1.seed();
+  } else if (isNaN(seed)) {
+    seed = rng$1.get();
+    rng$1.seed(seed);
+  }
+
+  console.log('Seed:', seed);
+
+  var _generate = generate$1(size, seed),
       data = _generate.data,
       rooms = _generate.rooms;
 
@@ -1619,8 +1640,8 @@ function createDungeon(size) {
     if (!cell) {
       var valid = void 0;
       do {
-        var room = Random.choose(world.rooms.list);
-        cell = Random.choose(room.cells);
+        var room = rng$1.choose(world.rooms.list);
+        cell = rng$1.choose(room.cells);
       } while (entitiesAt(cell).length);
     }
     if (!isNaN(item)) setAt(cell, item);else if ((typeof item === 'undefined' ? 'undefined' : _typeof(item)) === 'object') {
@@ -1789,16 +1810,25 @@ var sprites = {
   }
 };
 
+// TODO: Change these to key/value pairs with data on each enemy
 var enemies = ['wyrm', 'axolotl', 'lullaby', 'gatling', 'wasp', 'replica'];
 
+// Use `RNG.create(seed)` to seed the RNG, where `seed` is some
+// number like `9820.083045702477`. Seeding the RNG allows you
+// to achieve the same dungeon multiple times for debugging.
+//
+// Leave empty for a random seed.
+//
+var rng = RNG.create();
+
 function generate() {
-  var world = Generator$$1.createDungeon(WORLD_SIZE);
+  var world = Generator$$1.createDungeon(WORLD_SIZE, rng);
   var hero = Entity$$1.create('hero', sprites.hero);
   world.spawn(STAIRS);
   world.spawn(hero);
   var i = 10;
   while (i--) {
-    var type = Random.choose(enemies);
+    var type = rng.choose(enemies);
     world.spawn(Entity$$1.create(type, sprites[type]));
   }
   var _iteratorNormalCompletion = true;
