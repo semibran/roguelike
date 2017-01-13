@@ -1,6 +1,6 @@
 import { Cell, Rect } from './index'
 
-const [FLOOR, WALL, DOOR, DOOR_OPEN, DOOR_SECRET, STAIRS] = [0, 1, 2, 3, 4, 5]
+const [FLOOR, WALL, DOOR, DOOR_OPEN, DOOR_SECRET, STAIRS, TRAP] = [0, 1, 2, 3, 4, 5, 6]
 const tiles = [
   {
     name: 'floor',
@@ -30,6 +30,11 @@ const tiles = [
     name: 'stairs',
     walkable: true,
     stairs: true
+  },
+  {
+    name: 'trap',
+    walkable: true,
+    trap: true
   }
 ]
 
@@ -48,7 +53,7 @@ for (let tile of tiles) {
   costs.push(cost)
 }
 
-const constants = { FLOOR, WALL, DOOR, DOOR_OPEN, DOOR_SECRET, STAIRS, tiles, costs }
+const constants = { FLOOR, WALL, DOOR, DOOR_OPEN, DOOR_SECRET, STAIRS, TRAP, tiles, costs }
 const methods   = { create, fill, clear, getAt, getTileAt, setAt, getSize, findPath }
 const World     = Object.assign({}, constants, methods)
 

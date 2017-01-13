@@ -1,9 +1,20 @@
 import { Dungeon, World, Entity, Cell, Rect, RNG } from './utils/index'
 
 const WORLD_SIZE = 25
-const { FLOOR, WALL, DOOR, DOOR_OPEN, DOOR_HIDDEN, STAIRS } = World
+const { FLOOR, WALL, DOOR, DOOR_OPEN, DOOR_HIDDEN, STAIRS, TRAP } = World
 
 let Colors = function () {
+
+  let lighter = {}
+  let darker  = {}
+
+  function lighten(color) {
+    return null
+  }
+
+  function darken(color) {
+    return null
+  }
 
   return {
 
@@ -26,7 +37,9 @@ let Colors = function () {
     // Monochromes
     WHITE: [255, 255, 255],
     GRAY:  [128, 128, 128],
-    BLACK: [  0,   0,   0]
+    BLACK: [  0,   0,   0],
+
+    lighten, darken
 
   }
 
@@ -41,6 +54,7 @@ const sprites = {
   door_open:   ['/', MAROON],
   door_secret: ['#', OLIVE],
   stairs:      ['>', WHITE],
+  trap:        ['^', MAGENTA],
   hero:        ['@', WHITE],
   wyrm:        ['w', LIME],
   replica:     ['J', BLUE]
@@ -61,6 +75,7 @@ function generate() {
   let world = Dungeon.create(WORLD_SIZE, rng)
   let hero = Entity.create('hero', sprites.hero)
   world.spawn(STAIRS, 'center')
+  world.spawn(TRAP)
   world.spawn(hero)
   let i = 10
   while (i--) {

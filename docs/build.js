@@ -397,6 +397,7 @@ var DOOR$1 = 2;
 var DOOR_OPEN$1 = 3;
 var DOOR_SECRET = 4;
 var STAIRS$1 = 5;
+var TRAP$1 = 6;
 
 var tiles = [{
   name: 'floor',
@@ -421,6 +422,10 @@ var tiles = [{
   name: 'stairs',
   walkable: true,
   stairs: true
+}, {
+  name: 'trap',
+  walkable: true,
+  trap: true
 }];
 
 var costs = [];
@@ -456,7 +461,7 @@ try {
   }
 }
 
-var constants$1 = { FLOOR: FLOOR$1, WALL: WALL$1, DOOR: DOOR$1, DOOR_OPEN: DOOR_OPEN$1, DOOR_SECRET: DOOR_SECRET, STAIRS: STAIRS$1, tiles: tiles, costs: costs };
+var constants$1 = { FLOOR: FLOOR$1, WALL: WALL$1, DOOR: DOOR$1, DOOR_OPEN: DOOR_OPEN$1, DOOR_SECRET: DOOR_SECRET, STAIRS: STAIRS$1, TRAP: TRAP$1, tiles: tiles, costs: costs };
 var methods$1 = { create: create$1, fill: fill, clear: clear, getAt: getAt, getTileAt: getTileAt, setAt: setAt, getSize: getSize, findPath: findPath };
 var World$$1 = Object.assign({}, constants$1, methods$1);
 
@@ -987,8 +992,6 @@ function findRooms(data, maxRatio) {
   maxRatio = maxRatio || 0.33;
   var size = World$$1.getSize(data);
   var area = size * size;
-  var min = Math.round(size / 5);
-  var max = Math.round(size / 4);
   var valid = true;
   var rooms = { cells: {}, edges: {}, rects: {}, diamonds: {}, normal: new Set(), secret: new Set(), list: [] };
   var total = 0;
@@ -1024,40 +1027,56 @@ function findRooms(data, maxRatio) {
     return true;
   }
 
+  function getData(shape) {
+    switch (shape) {
+      case 'rect':
+        {
+          var matrix = findRoom(3, 9, size);
+          return [matrix, Rect.getBorder(matrix)];
+        }
+      case 'diamond':
+        {
+          var _matrix = findDiamondRoom(2, 6, size);
+          return [_matrix, Diamond.getEdges(_matrix)];
+        }
+    }
+  }
+
   while (valid && total / area < maxRatio) {
-    var type = 'rect';
-    var shape = void 0;
+    var shape = 'rect';
+    var matrix = void 0;
     do {
       var cells = void 0;
-      if (rng$1.choose(50)) type = 'diamond';
-      if (type === 'rect') {
-        shape = findRoom(min, max, size);
-        cells = Rect.getBorder(shape);
-      } else if (type === 'diamond') {
-        shape = findDiamondRoom(2, 4, size);
-        cells = Diamond.getEdges(shape);
+      if (rng$1.choose(50)) {
+        shape = 'diamond';
       }
-      if (shape in cached) {
+
+      var _getData = getData(shape);
+
+      var _getData2 = slicedToArray(_getData, 2);
+
+      matrix = _getData2[0];
+      cells = _getData2[1];
+
+      if (matrix in cached) {
         valid = false;
         continue;
       }
-      valid = validate(cells);
-      cached[shape] = valid;
+      cached[matrix] = valid = validate(cells);
     } while (!valid && ++fails < area);
     if (valid) {
-      var room = void 0,
-          edges = void 0;
-      room = { edges: {}, shape: shape, type: type };
-      if (type === 'rect') {
-        edges = Rect.getEdges(shape, true);
-        room.cells = Rect.getCells(shape);
-        room.center = Rect.getCenter(shape);
-        rooms.rects[shape] = room;
-      } else if (type === 'diamond') {
-        edges = Diamond.getEdges(shape);
-        room.cells = Diamond.getCells(shape);
-        room.center = Diamond.getCenter(shape);
-        rooms.diamonds[shape] = room;
+      var edges = void 0,
+          room = { edges: {}, shape: shape, matrix: matrix, type: 'room' };
+      if (shape === 'rect') {
+        edges = Rect.getBorder(matrix, true);
+        room.cells = Rect.getCells(matrix);
+        room.center = Rect.getCenter(matrix);
+        rooms.rects[matrix] = room;
+      } else if (shape === 'diamond') {
+        edges = Diamond.getEdges(matrix);
+        room.cells = Diamond.getCells(matrix);
+        room.center = Diamond.getCenter(matrix);
+        rooms.diamonds[matrix] = room;
       }
       var _iteratorNormalCompletion3 = true;
       var _didIteratorError3 = false;
@@ -1261,7 +1280,7 @@ function findDoors(data, rooms, mazes) {
     for (var _iterator6 = rooms.list[Symbol.iterator](), _step6; !(_iteratorNormalCompletion6 = (_step6 = _iterator6.next()).done); _iteratorNormalCompletion6 = true) {
       var room = _step6.value;
 
-      room.connections = [];
+      room.connections = new Set();
     }
   } catch (err) {
     _didIteratorError6 = true;
@@ -1286,7 +1305,7 @@ function findDoors(data, rooms, mazes) {
     for (var _iterator7 = mazes.list[Symbol.iterator](), _step7; !(_iteratorNormalCompletion7 = (_step7 = _iterator7.next()).done); _iteratorNormalCompletion7 = true) {
       var maze = _step7.value;
 
-      maze.connections = [];
+      maze.connections = new Set();
     }
   } catch (err) {
     _didIteratorError7 = true;
@@ -1347,13 +1366,13 @@ function findDoors(data, rooms, mazes) {
         stack.push(next);
         track.push(next);
 
-        node.connections.push(next);
-        next.connections.push(node);
+        node.connections.add(next);
+        next.connections.add(node);
       }
     } else {
       if (node.type === 'maze' && node.connections.length === 1) {
-        var last = node.connections[0];
-        last.connections.splice(last.connections.indexOf(node), 1);
+        var last = node.connections.entries().next().value;
+        last.connections.delete(node);
         connected.delete(node);
       }
       while (track.length) {
@@ -1408,13 +1427,11 @@ function findDoors(data, rooms, mazes) {
     var connectors = {};
     var prospects = [];
     // Normalize based on type
-    if (node.type === 'rect' || node.type === 'diamond') {
-      // console.log(node.type, node.shape)
+    if (node.type === 'room') {
       for (var _id4 in node.edges) {
         if (_id4 in connectorRegions) prospects.push(_id4);
       }
     } else if (node.type === 'maze') {
-      // console.log(node.type, Object.keys(node.cells).length)
       for (var _id5 in node.cells) {
         var _cell = Cell.fromString(_id5);
         var _neighbors = Cell.getNeighbors(_cell);
@@ -1458,7 +1475,7 @@ function findDoors(data, rooms, mazes) {
         if (_next2) {
           var lucky = rng$1.choose(5);
           var isIncluded = _id6 in doorRegions;
-          var isConnected = node.connections.includes(_next2);
+          var isConnected = node.connections.has(_next2);
           var isMain = connected.has(_next2) && !lucky;
           var nearby = !!Cell.getNeighbors(_cell2, true).filter(function (neighbor) {
             return neighbor in doorRegions;
@@ -1604,7 +1621,7 @@ function generate$1(size, seed) {
     var neighbors = Cell.getNeighbors(cell).filter(function (neighbor) {
       return endKeys.includes(neighbor.toString());
     });
-    if (!neighbors.length && rooms.list.includes(room) && rng$1.choose()) {
+    if (!neighbors.length && rng$1.choose()) {
       type = DOOR_SECRET$1;
       rooms.normal.delete(room);
       rooms.secret.add(room);
@@ -1643,7 +1660,7 @@ function create$3(size, seed) {
       do {
         var room = rng$1.choose([].concat(toConsumableArray(world.rooms.normal)));
         if (cell !== 'center') cell = rng$1.choose(room.cells);else cell = room.center;
-      } while (entitiesAt(cell).length);
+      } while (entitiesAt(cell).length && getAt(cell) === FLOOR$2);
     }
     if (!isNaN(item)) setAt(cell, item);else if ((typeof item === 'undefined' ? 'undefined' : _typeof(item)) === 'object') {
       item.world = world;
@@ -1662,6 +1679,10 @@ function create$3(size, seed) {
 
   function getAt(cell) {
     return World$$1.getAt(world.data, cell);
+  }
+
+  function getTileAt(cell) {
+    return World$$1.tiles[getAt(cell)];
   }
 
   function setAt(cell, value) {
@@ -1746,7 +1767,7 @@ function create$3(size, seed) {
   }
 
   var props = { size: size, data: data, rooms: rooms, entities: entities };
-  var methods = { spawn: spawn, entitiesAt: entitiesAt, getAt: getAt, setAt: setAt, findPath: findPath, openDoor: openDoor, closeDoor: closeDoor, toggleDoor: toggleDoor };
+  var methods = { spawn: spawn, entitiesAt: entitiesAt, getAt: getAt, getTileAt: getTileAt, setAt: setAt, findPath: findPath, openDoor: openDoor, closeDoor: closeDoor, toggleDoor: toggleDoor };
 
   var world = Object.assign({}, props, methods);
   return world;
@@ -1754,9 +1775,21 @@ function create$3(size, seed) {
 
 var WORLD_SIZE = 25;
 var STAIRS = World$$1.STAIRS;
+var TRAP = World$$1.TRAP;
 
 
 var Colors = function () {
+
+  var lighter = {};
+  var darker = {};
+
+  function lighten(color) {
+    return null;
+  }
+
+  function darken(color) {
+    return null;
+  }
 
   return {
 
@@ -1779,7 +1812,9 @@ var Colors = function () {
     // Monochromes
     WHITE: [255, 255, 255],
     GRAY: [128, 128, 128],
-    BLACK: [0, 0, 0]
+    BLACK: [0, 0, 0],
+
+    lighten: lighten, darken: darken
 
   };
 }();
@@ -1789,6 +1824,7 @@ var OLIVE = Colors.OLIVE;
 var LIME = Colors.LIME;
 var TEAL = Colors.TEAL;
 var BLUE = Colors.BLUE;
+var MAGENTA = Colors.MAGENTA;
 var WHITE = Colors.WHITE;
 var GRAY = Colors.GRAY;
 
@@ -1800,6 +1836,7 @@ var sprites = {
   door_open: ['/', MAROON],
   door_secret: ['#', OLIVE],
   stairs: ['>', WHITE],
+  trap: ['^', MAGENTA],
   hero: ['@', WHITE],
   wyrm: ['w', LIME],
   replica: ['J', BLUE]
@@ -1820,6 +1857,7 @@ function generate() {
   var world = Dungeon$$1.create(WORLD_SIZE, rng);
   var hero = Entity$$1.create('hero', sprites.hero);
   world.spawn(STAIRS, 'center');
+  world.spawn(TRAP);
   world.spawn(hero);
   var i = 10;
   while (i--) {

@@ -1,16 +1,16 @@
 import { RNG, World, Cell, Rect } from './index'
 
-const { FLOOR, WALL, DOOR, DOOR_OPEN, DOOR_SECRET, STAIRS } = World
+const { FLOOR, WALL, DOOR, DOOR_OPEN, DOOR_SECRET, STAIRS, TRAP } = World
 
 export default { create }
 
 let rng = RNG.create()
 
 function findRoom(min, max, worldSize) {
-  var w = rng.get((max - min) / 2 + 1) * 2 + min
-  var h = rng.get((max - min) / 2 + 1) * 2 + min
-  var x = rng.get((worldSize - w) / 2) * 2 + 1
-  var y = rng.get((worldSize - h) / 2) * 2 + 1
+  let w = rng.get((max - min) / 2 + 1) * 2 + min
+  let h = rng.get((max - min) / 2 + 1) * 2 + min
+  let x = rng.get((worldSize - w) / 2) * 2 + 1
+  let y = rng.get((worldSize - h) / 2) * 2 + 1
   return [x, y, w, h]
 }
 
@@ -87,8 +87,6 @@ function findRooms(data, maxRatio) {
   maxRatio = maxRatio || 0.33
   let size = World.getSize(data)
   let area = size * size
-  let min = Math.round(size / 5)
-  let max = Math.round(size / 4)
   let valid = true
   let rooms = { cells: {}, edges: {}, rects: {}, diamonds: {}, normal: new Set, secret: new Set, list: [] }
   let total = 0
@@ -102,40 +100,46 @@ function findRooms(data, maxRatio) {
     return true
   }
 
+  function getData(shape) {
+    switch (shape) {
+      case 'rect': {
+        let matrix = findRoom(3, 9, size)
+        return [matrix, Rect.getBorder(matrix)]
+      }
+      case 'diamond': {
+        let matrix = findDiamondRoom(2, 6, size)
+        return [matrix, Diamond.getEdges(matrix)]
+      }
+    }
+  }
+
   while (valid && total / area < maxRatio) {
-    let type = 'rect'
-    let shape
+    let shape = 'rect'
+    let matrix
     do {
       let cells
-      if ( rng.choose(50) )
-        type = 'diamond'
-      if (type === 'rect') {
-        shape = findRoom(min, max, size)
-        cells = Rect.getBorder(shape)
-      } else if (type === 'diamond') {
-        shape = findDiamondRoom(2, 4, size)
-        cells = Diamond.getEdges(shape)
+      if ( rng.choose(50) ) {
+        shape = 'diamond'
       }
-      if (shape in cached) {
+      [matrix, cells] = getData(shape)
+      if (matrix in cached) {
         valid = false
         continue
       }
-      valid = validate(cells)
-      cached[shape] = valid
+      cached[matrix] = valid = validate(cells)
     } while (!valid && ++fails < area)
     if (valid) {
-      let room, edges
-      room = { edges: {}, shape, type }
-      if (type === 'rect') {
-        edges = Rect.getEdges(shape, true)
-        room.cells  = Rect.getCells(shape)
-        room.center = Rect.getCenter(shape)
-        rooms.rects[shape] = room
-      } else if (type === 'diamond') {
-        edges = Diamond.getEdges(shape)
-        room.cells  = Diamond.getCells(shape)
-        room.center = Diamond.getCenter(shape)
-        rooms.diamonds[shape] = room
+      let edges, room = { edges: {}, shape, matrix, type: 'room' }
+      if (shape === 'rect') {
+        edges = Rect.getBorder(matrix, true)
+        room.cells  = Rect.getCells(matrix)
+        room.center = Rect.getCenter(matrix)
+        rooms.rects[matrix] = room
+      } else if (shape === 'diamond') {
+        edges = Diamond.getEdges(matrix)
+        room.cells  = Diamond.getCells(matrix)
+        room.center = Diamond.getCenter(matrix)
+        rooms.diamonds[matrix] = room
       }
       for (let cell of room.cells)
         rooms.cells[cell] = room
@@ -249,10 +253,10 @@ function findDoors(data, rooms, mazes) {
   let connected = new Map
 
   for (let room of rooms.list)
-    room.connections = []
+    room.connections = new Set
 
   for (let maze of mazes.list)
-    maze.connections = []
+    maze.connections = new Set
 
   while (stack.length) {
     let node = stack.pop()
@@ -279,13 +283,13 @@ function findDoors(data, rooms, mazes) {
         stack.push(next)
         track.push(next)
 
-        node.connections.push(next)
-        next.connections.push(node)
+        node.connections.add(next)
+        next.connections.add(node)
       }
     } else {
       if (node.type === 'maze' && node.connections.length === 1) {
-        let last = node.connections[0]
-        last.connections.splice(last.connections.indexOf(node), 1)
+        let last = node.connections.entries().next().value
+        last.connections.delete(node)
         connected.delete(node)
       }
       while (track.length) {
@@ -318,13 +322,11 @@ function findDoors(data, rooms, mazes) {
     let connectors = {}
     let prospects = []
     // Normalize based on type
-    if (node.type === 'rect' || node.type === 'diamond') {
-      // console.log(node.type, node.shape)
+    if (node.type === 'room') {
       for (let id in node.edges)
         if (id in connectorRegions)
           prospects.push(id)
     } else if (node.type === 'maze') {
-      // console.log(node.type, Object.keys(node.cells).length)
       for (let id in node.cells) {
         let cell = Cell.fromString(id)
         let neighbors = Cell.getNeighbors(cell)
@@ -341,7 +343,7 @@ function findDoors(data, rooms, mazes) {
       if (next) {
         let lucky = rng.choose(5)
         let isIncluded  = id in doorRegions
-        let isConnected = node.connections.includes(next)
+        let isConnected = node.connections.has(next)
         let isMain      = connected.has(next) && !lucky
         let nearby      = !!Cell.getNeighbors(cell, true).filter(neighbor => neighbor in doorRegions).length
         if (!isIncluded && !isConnected && !isMain && !nearby)
@@ -377,10 +379,9 @@ function generate(size, seed) {
   let data = World.fill( World.create(size) )
 
   let rooms = findRooms(data)
-  for (let room of rooms.list) {
+  for (let room of rooms.list)
     for (let cell of room.cells)
       World.setAt(data, cell, FLOOR)
-  }
 
   let mazes = findMazes(data)
   for (let maze of mazes.list)
@@ -398,7 +399,7 @@ function generate(size, seed) {
     let room = regions.filter(region => region.type !== 'maze')[0]
     let type = DOOR
     let neighbors = Cell.getNeighbors(cell).filter( neighbor => endKeys.includes( neighbor.toString() ) )
-    if ( !neighbors.length && rooms.list.includes(room) && rng.choose() ) {
+    if ( !neighbors.length && rng.choose() ) {
       type = DOOR_SECRET
       rooms.normal.delete(room)
       rooms.secret.add(room)
@@ -441,7 +442,7 @@ function create(size, seed) {
           cell = rng.choose(room.cells)
         else
           cell = room.center
-      } while (entitiesAt(cell).length)
+      } while (entitiesAt(cell).length && getAt(cell) === FLOOR)
     }
     if ( !isNaN(item) )
       setAt(cell, item)
@@ -460,6 +461,10 @@ function create(size, seed) {
 
   function getAt(cell) {
     return World.getAt(world.data, cell)
+  }
+
+  function getTileAt(cell) {
+    return World.tiles[ getAt(cell) ]
   }
 
   function setAt(cell, value) {
@@ -522,7 +527,7 @@ function create(size, seed) {
   }
 
   let props   = { size, data, rooms, entities }
-  let methods = { spawn, entitiesAt, getAt, setAt, findPath, openDoor, closeDoor, toggleDoor }
+  let methods = { spawn, entitiesAt, getAt, getTileAt, setAt, findPath, openDoor, closeDoor, toggleDoor }
 
   let world = Object.assign({}, props, methods)
   return world
