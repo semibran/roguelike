@@ -104,7 +104,7 @@ function findRooms(data, maxRatio) {
     switch (shape) {
       case 'rect': {
         let matrix = findRoom(3, 9, size)
-        return [matrix, Rect.getBorder(matrix)]
+        return [matrix, Rect.getBorder(matrix, true)]
       }
       case 'diamond': {
         let matrix = findDiamondRoom(2, 6, size)
@@ -403,7 +403,6 @@ function generate(size, seed) {
       type = DOOR_SECRET
       rooms.normal.delete(room)
       rooms.secret.add(room)
-      // console.log(cell)
     } else if ( rng.choose(5) )
       type = FLOOR
     World.setAt(data, cell, type)
@@ -429,9 +428,8 @@ function create(size, seed) {
   console.log('Seed:', seed)
 
   let {data, rooms} = generate(size, seed)
-  let entities = []
 
-  function spawn(item, cell) {
+  function spawn(element, cell) {
     if (!world.rooms)
       return null
     if (typeof cell !== 'object') {
@@ -442,22 +440,52 @@ function create(size, seed) {
           cell = rng.choose(room.cells)
         else
           cell = room.center
-      } while (entitiesAt(cell).length && getAt(cell) === FLOOR)
+      } while (elementsAt(cell).length && getAt(cell) === FLOOR)
     }
-    if ( !isNaN(item) )
-      setAt(cell, item)
-    else if (typeof item === 'object') {
-      item.world = world
-      item.cell  = cell
-      item.look()
-      entities.push(item)
+    if ( !isNaN(element) )
+      setAt(cell, element)
+    else if (typeof element === 'object') {
+      element.world = world
+      element.cell  = cell
+      getList(element).push(element)
     }
     return cell
+  }
+
+  function getList(element) {
+    switch (element.type) {
+      case 'entity':
+        return world.entities
+      case 'item':
+        return world.items
+      default:
+        return null
+    }
+  }
+
+  function kill(element) {
+    let list = getList(element)
+    if (!list)
+      return false
+    let index = list.indexOf(element)
+    if (index < 0)
+      return false
+    list.splice(index, 1)
+    return true
+  }
+
+  function elementsAt(cell) {
+    return entitiesAt(cell).concat(itemsAt(cell))
   }
 
   function entitiesAt(cell) {
     return world.entities.filter( entity => Cell.isEqual(entity.cell, cell) )
   }
+
+  function itemsAt(cell) {
+    return world.items.filter(   item => Cell.isEqual(  item.cell, cell) )
+  }
+
 
   function getAt(cell) {
     return World.getAt(world.data, cell)
@@ -526,8 +554,8 @@ function create(size, seed) {
     return world
   }
 
-  let props   = { size, data, rooms, entities }
-  let methods = { spawn, entitiesAt, getAt, getTileAt, setAt, findPath, openDoor, closeDoor, toggleDoor }
+  let props   = { size, data, rooms, entities: [], items: [] }
+  let methods = { spawn, kill, elementsAt, entitiesAt, itemsAt, getAt, getTileAt, setAt, findPath, openDoor, closeDoor, toggleDoor }
 
   let world = Object.assign({}, props, methods)
   return world

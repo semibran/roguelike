@@ -4,44 +4,6 @@
   (factory());
 }(this, (function () { 'use strict';
 
-var RNG = create();
-RNG.create = create;
-
-function create(initialSeed) {
-
-  if (isNaN(initialSeed)) initialSeed = Math.random() * 10000;
-
-  var currentSeed = initialSeed;
-
-  return { get: get, choose: choose, seed: seed };
-
-  function get(min, max) {
-    var a = arguments.length;
-    if (a === 0) {
-      var x = Math.sin(currentSeed++) * 10000;
-      return x - Math.floor(x);
-    } else if (a === 1) max = min, min = 0;
-    if (min > max) {
-      
-      var _ref = [max, min];
-      min = _ref[0];
-      max = _ref[1];
-    }return Math.floor(get() * (max - min)) + min;
-  }
-
-  function choose(array) {
-    if (Array.isArray(array) && !array.length) return null;
-    if (!isNaN(array)) return !get(array);
-    if (!array) array = [0, 1];
-    return array[get(array.length)];
-  }
-
-  function seed(newSeed) {
-    if (!isNaN(newSeed)) initialSeed = currentSeed = newSeed;
-    return currentSeed;
-  }
-}
-
 var _typeof = typeof Symbol === "function" && typeof Symbol.iterator === "symbol" ? function (obj) {
   return typeof obj;
 } : function (obj) {
@@ -160,6 +122,54 @@ var toConsumableArray = function (arr) {
     return Array.from(arr);
   }
 };
+
+var RNG = create();
+RNG.create = create;
+
+function create(initialSeed) {
+
+  if (isNaN(initialSeed)) initialSeed = Math.random() * 10000;
+
+  var currentSeed = initialSeed;
+
+  return { get: get$$1, choose: choose, seed: seed };
+
+  function get$$1(min, max) {
+    var a = arguments.length;
+    if (a === 0) {
+      var x = Math.sin(currentSeed++) * 10000;
+      return x - Math.floor(x);
+    } else if (a === 1) {
+      if (!isNaN(min)) max = min, min = 0;else if (Array.isArray(min)) {
+        
+        var _min = min;
+
+        var _min2 = slicedToArray(_min, 2);
+
+        min = _min2[0];
+        max = _min2[1];
+      }
+    }
+    if (min > max) {
+      
+      var _ref = [max, min];
+      min = _ref[0];
+      max = _ref[1];
+    }return Math.floor(get$$1() * (max - min)) + min;
+  }
+
+  function choose(array) {
+    if (Array.isArray(array) && !array.length) return null;
+    if (!isNaN(array)) return !get$$1(array);
+    if (!array) array = [0, 1];
+    return array[get$$1(array.length)];
+  }
+
+  function seed(newSeed) {
+    if (!isNaN(newSeed)) initialSeed = currentSeed = newSeed;
+    return currentSeed;
+  }
+}
 
 var DIRECTIONS = [[-1, 0], [-1, -1], [0, -1], [1, -1], [1, 0], [1, 1], [0, 1], [-1, 1]];
 var LEFT = DIRECTIONS[0];
@@ -762,9 +772,24 @@ function transformOctant(row, col, octant) {
 
 var Entity$$1 = { create: create$2 };
 
-function create$2(type, sprite, walkable) {
+function create$2(options) {
 
-  walkable = !!walkable;
+  var entity = {
+    entityType: null,
+    kind: null
+  };
+
+  var props = {
+    type: 'entity',
+    wandering: true,
+    health: 1,
+    seeing: {},
+    known: {},
+    world: null,
+    cell: null
+  };
+
+  Object.assign(entity, options, props);
 
   var path = null;
 
@@ -779,10 +804,10 @@ function create$2(type, sprite, walkable) {
       for (var _iterator = cells[Symbol.iterator](), _step; !(_iteratorNormalCompletion = (_step = _iterator.next()).done); _iteratorNormalCompletion = true) {
         var cell = _step.value;
 
-        var _type = World$$1.tiles[entity.world.getAt(cell)].name;
-        var other = entity.world.entitiesAt(cell)[0];
-        if (other) _type = other.type;
-        entity.known[cell] = _type;
+        var kind = World$$1.tiles[entity.world.getAt(cell)].name;
+        var other = entity.world.elementsAt(cell)[0];
+        if (other) kind = other.kind;
+        entity.known[cell] = kind;
         entity.seeing[cell] = true;
       }
     } catch (err) {
@@ -817,17 +842,19 @@ function create$2(type, sprite, walkable) {
     var id = world.getAt(target);
     var tile = World$$1.tiles[id];
     var entities = world.entitiesAt(target);
-    if (tile.walkable) {
-      var enemies = entities.filter(function (entity) {
-        return !entity.walkable;
-      });
-      if (!enemies.length) {
+    var items = world.itemsAt(target);
+    if (entities.length) {
+      var enemy = entities[0];
+      attack(enemy);
+    } else if (tile.walkable) {
+      if (!entities.length) {
         entity.cell = target;
+        if (items.length) {
+          var item = items[0];
+          entity.collect(item);
+        }
         moved = true;
         look();
-      } else {
-        var enemy = enemies[0];
-        attack(enemy);
       }
     } else if (tile.door) {
       world.openDoor(target);
@@ -860,21 +887,44 @@ function create$2(type, sprite, walkable) {
     return entity.move(dist);
   }
 
-  function attack(entity) {
-    entity.health--;
-    if (entity.health <= 0) {
-      var entities = entity.world.entities;
-      var index = entities.indexOf(entity);
-      if (index !== -1) entities.splice(index, 1);
+  function attack(other) {
+    other.health--;
+    if (other.health <= 0) {
+      entity.world.kill(other);
       look();
     }
   }
 
-  var props = { type: type, sprite: sprite, walkable: walkable, wandering: true, health: 1, seeing: {}, known: {}, world: null, cell: null };
-  var methods = { look: look, move: move, moveTo: moveTo };
-  var entity = Object.assign({}, props, methods);
+  function collect(item) {
+    if (Cell.isEqual(entity.cell, item.cell)) {
+      if (item.itemType === 'money') console.log('Found ' + item.value + ' gold.');
+      entity.world.kill(item);
+    }
+  }
 
-  return entity;
+  var methods = { look: look, move: move, moveTo: moveTo, attack: attack, collect: collect };
+  return Object.assign(entity, methods);
+}
+
+var Item = { create: create$3 };
+
+function create$3(options) {
+
+  var item = {
+    itemType: null,
+    kind: null,
+    value: null
+  };
+
+  var props = {
+    type: 'item',
+    world: null,
+    cell: null
+  };
+
+  Object.assign(item, options, props);
+
+  return item;
 }
 
 var FLOOR$2 = World$$1.FLOOR;
@@ -884,7 +934,7 @@ var DOOR_OPEN$2 = World$$1.DOOR_OPEN;
 var DOOR_SECRET$1 = World$$1.DOOR_SECRET;
 
 
-var Dungeon$$1 = { create: create$3 };
+var Dungeon$$1 = { create: create$4 };
 
 var rng$1 = RNG.create();
 
@@ -1032,7 +1082,7 @@ function findRooms(data, maxRatio) {
       case 'rect':
         {
           var matrix = findRoom(3, 9, size);
-          return [matrix, Rect.getBorder(matrix)];
+          return [matrix, Rect.getBorder(matrix, true)];
         }
       case 'diamond':
         {
@@ -1625,7 +1675,6 @@ function generate$1(size, seed) {
       type = DOOR_SECRET$1;
       rooms.normal.delete(room);
       rooms.secret.add(room);
-      // console.log(cell)
     } else if (rng$1.choose(5)) type = FLOOR$2;
     World$$1.setAt(data, cell, type);
   }
@@ -1633,7 +1682,7 @@ function generate$1(size, seed) {
   return { data: data, rooms: rooms };
 }
 
-function create$3(size, seed) {
+function create$4(size, seed) {
 
   if (!size % 2) throw new RangeError('Cannot create dungeon of even size ' + size);
 
@@ -1651,29 +1700,56 @@ function create$3(size, seed) {
       data = _generate.data,
       rooms = _generate.rooms;
 
-  var entities = [];
-
-  function spawn(item, cell) {
+  function spawn(element, cell) {
     if (!world.rooms) return null;
     if ((typeof cell === 'undefined' ? 'undefined' : _typeof(cell)) !== 'object') {
       var valid = void 0;
       do {
         var room = rng$1.choose([].concat(toConsumableArray(world.rooms.normal)));
         if (cell !== 'center') cell = rng$1.choose(room.cells);else cell = room.center;
-      } while (entitiesAt(cell).length && getAt(cell) === FLOOR$2);
+      } while (elementsAt(cell).length && getAt(cell) === FLOOR$2);
     }
-    if (!isNaN(item)) setAt(cell, item);else if ((typeof item === 'undefined' ? 'undefined' : _typeof(item)) === 'object') {
-      item.world = world;
-      item.cell = cell;
-      item.look();
-      entities.push(item);
+    if (!isNaN(element)) setAt(cell, element);else if ((typeof element === 'undefined' ? 'undefined' : _typeof(element)) === 'object') {
+      element.world = world;
+      element.cell = cell;
+      getList(element).push(element);
     }
     return cell;
+  }
+
+  function getList(element) {
+    switch (element.type) {
+      case 'entity':
+        return world.entities;
+      case 'item':
+        return world.items;
+      default:
+        return null;
+    }
+  }
+
+  function kill(element) {
+    var list = getList(element);
+    if (!list) return false;
+    var index = list.indexOf(element);
+    if (index < 0) return false;
+    list.splice(index, 1);
+    return true;
+  }
+
+  function elementsAt(cell) {
+    return entitiesAt(cell).concat(itemsAt(cell));
   }
 
   function entitiesAt(cell) {
     return world.entities.filter(function (entity) {
       return Cell.isEqual(entity.cell, cell);
+    });
+  }
+
+  function itemsAt(cell) {
+    return world.items.filter(function (item) {
+      return Cell.isEqual(item.cell, cell);
     });
   }
 
@@ -1766,60 +1842,57 @@ function create$3(size, seed) {
     return world;
   }
 
-  var props = { size: size, data: data, rooms: rooms, entities: entities };
-  var methods = { spawn: spawn, entitiesAt: entitiesAt, getAt: getAt, getTileAt: getTileAt, setAt: setAt, findPath: findPath, openDoor: openDoor, closeDoor: closeDoor, toggleDoor: toggleDoor };
+  var props = { size: size, data: data, rooms: rooms, entities: [], items: [] };
+  var methods = { spawn: spawn, kill: kill, elementsAt: elementsAt, entitiesAt: entitiesAt, itemsAt: itemsAt, getAt: getAt, getTileAt: getTileAt, setAt: setAt, findPath: findPath, openDoor: openDoor, closeDoor: closeDoor, toggleDoor: toggleDoor };
 
   var world = Object.assign({}, props, methods);
   return world;
 }
 
+var _lighter;
+var _darker;
+
+// High-contrast shades
+var RED$1 = [255, 0, 0];
+var YELLOW$1 = [255, 255, 0];
+var LIME$1 = [0, 255, 0];
+var CYAN$1 = [0, 255, 255];
+var BLUE$1 = [0, 0, 255];
+var MAGENTA$1 = [255, 0, 255];
+
+// Darker ones
+var MAROON$1 = [128, 0, 0];
+var OLIVE$1 = [128, 128, 0];
+var GREEN$1 = [0, 128, 0];
+var TEAL$1 = [0, 128, 128];
+var NAVY$1 = [0, 0, 128];
+var PURPLE$1 = [128, 0, 128];
+
+// Monochromes
+var WHITE$1 = [255, 255, 255];
+var GRAY$1 = [128, 128, 128];
+var BLACK$1 = [0, 0, 0];
+
+var lighter = (_lighter = {}, defineProperty(_lighter, MAROON$1, RED$1), defineProperty(_lighter, OLIVE$1, YELLOW$1), defineProperty(_lighter, GREEN$1, LIME$1), defineProperty(_lighter, TEAL$1, CYAN$1), defineProperty(_lighter, NAVY$1, BLUE$1), defineProperty(_lighter, PURPLE$1, MAGENTA$1), defineProperty(_lighter, GRAY$1, WHITE$1), defineProperty(_lighter, BLACK$1, GRAY$1), _lighter);
+var darker = (_darker = {}, defineProperty(_darker, RED$1, MAROON$1), defineProperty(_darker, YELLOW$1, OLIVE$1), defineProperty(_darker, LIME$1, GREEN$1), defineProperty(_darker, CYAN$1, TEAL$1), defineProperty(_darker, BLUE$1, NAVY$1), defineProperty(_darker, MAGENTA$1, PURPLE$1), defineProperty(_darker, WHITE$1, GRAY$1), defineProperty(_darker, GRAY$1, BLACK$1), _darker);
+
+function lighten(color) {
+  return lighter[color];
+}
+
+function darken(color) {
+  return darker[color];
+}
+
+var constants$2 = { RED: RED$1, YELLOW: YELLOW$1, LIME: LIME$1, CYAN: CYAN$1, BLUE: BLUE$1, MAGENTA: MAGENTA$1, MAROON: MAROON$1, OLIVE: OLIVE$1, GREEN: GREEN$1, TEAL: TEAL$1, NAVY: NAVY$1, PURPLE: PURPLE$1, WHITE: WHITE$1, GRAY: GRAY$1, BLACK: BLACK$1 };
+var methods$2 = { lighten: lighten, darken: darken };
+var Colors = Object.assign({}, constants$2, methods$2);
+
 var WORLD_SIZE = 25;
 var STAIRS = World$$1.STAIRS;
 var TRAP = World$$1.TRAP;
-
-
-var Colors = function () {
-
-  var lighter = {};
-  var darker = {};
-
-  function lighten(color) {
-    return null;
-  }
-
-  function darken(color) {
-    return null;
-  }
-
-  return {
-
-    // High-contrast shades
-    RED: [255, 0, 0],
-    YELLOW: [255, 255, 0],
-    LIME: [0, 255, 0],
-    CYAN: [0, 255, 255],
-    BLUE: [0, 0, 255],
-    MAGENTA: [255, 0, 255],
-
-    // Darker ones
-    MAROON: [128, 0, 0],
-    OLIVE: [128, 128, 0],
-    GREEN: [0, 128, 0],
-    TEAL: [0, 128, 128],
-    NAVY: [0, 0, 128],
-    PURPLE: [128, 0, 128],
-
-    // Monochromes
-    WHITE: [255, 255, 255],
-    GRAY: [128, 128, 128],
-    BLACK: [0, 0, 0],
-
-    lighten: lighten, darken: darken
-
-  };
-}();
-
 var MAROON = Colors.MAROON;
+var YELLOW = Colors.YELLOW;
 var OLIVE = Colors.OLIVE;
 var LIME = Colors.LIME;
 var TEAL = Colors.TEAL;
@@ -1830,6 +1903,8 @@ var GRAY = Colors.GRAY;
 
 
 var sprites = {
+
+  // Tiles
   floor: [String.fromCharCode(183), TEAL],
   wall: ['#', OLIVE],
   door: ['+', MAROON],
@@ -1837,9 +1912,17 @@ var sprites = {
   door_secret: ['#', OLIVE],
   stairs: ['>', WHITE],
   trap: ['^', MAGENTA],
-  hero: ['@', WHITE],
+
+  // Entities
+  human: ['@', WHITE],
   wyrm: ['w', LIME],
-  replica: ['J', BLUE]
+  replica: ['J', BLUE],
+
+  // Items
+  gold: ['$', YELLOW],
+  silver: ['$', WHITE],
+  copper: ['$', MAROON]
+
 };
 
 // TODO: Change these to key/value pairs with data on each enemy
@@ -1853,17 +1936,68 @@ var enemies = ['wyrm', 'replica'];
 //
 var rng = RNG.create();
 
-function generate() {
-  var world = Dungeon$$1.create(WORLD_SIZE, rng);
-  var hero = Entity$$1.create('hero', sprites.hero);
-  world.spawn(STAIRS, 'center');
-  world.spawn(TRAP);
-  world.spawn(hero);
+function spawnEnemies(world) {
   var i = 10;
   while (i--) {
-    var type = rng.choose(enemies);
-    world.spawn(Entity$$1.create(type, sprites[type]));
+    var kind = rng.choose(enemies);
+    var options = { entityType: 'enemy', kind: kind };
+    var enemy = Entity$$1.create(options);
+    world.spawn(enemy);
   }
+}
+
+var money = {
+  copper: {
+    range: [4, 16]
+  },
+  silver: {
+    range: [32, 128],
+    chance: 0.10
+  },
+  gold: {
+    range: [256, 1024],
+    chance: 0.01
+  }
+};
+function spawnMoney(world) {
+
+  var i = 10;
+
+  while (i--) {
+
+    var num = rng.get(100) + 1;
+    var lowest = 1;
+    var rarest = null;
+    for (var _kind in money) {
+      var _money$_kind = money[_kind],
+          range = _money$_kind.range,
+          chance = _money$_kind.chance;
+
+      if (!chance) chance = 1;
+      if (chance <= lowest && num <= chance * 100) {
+        lowest = chance;
+        rarest = _kind;
+      }
+    }
+
+    var kind = rarest;
+    var value = rng.get(money[kind].range);
+
+    var options = { itemType: 'money', kind: kind, value: value };
+    var item = Item.create(options);
+
+    world.spawn(item);
+  }
+}
+
+function generate() {
+  var world = Dungeon$$1.create(WORLD_SIZE, rng);
+  var hero = Entity$$1.create({ entityType: 'hero', kind: 'human' });
+  world.spawn(hero);
+  world.spawn(STAIRS, 'center');
+  world.spawn(TRAP);
+  spawnEnemies(world);
+  spawnMoney(world);
   var _iteratorNormalCompletion = true;
   var _didIteratorError = false;
   var _iteratorError = undefined;

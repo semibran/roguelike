@@ -17,8 +17,12 @@ function create(initialSeed) {
     if (a === 0) {
       let x = Math.sin(currentSeed++) * 10000
       return x - Math.floor(x)
-    } else if (a === 1)
-      max = min, min = 0
+    } else if (a === 1) {
+      if ( !isNaN(min) )
+        max = min, min = 0
+      else if ( Array.isArray(min) )
+        [min, max] = min
+    }
     if (min > max)
       [min, max] = [max, min]
     return Math.floor( get() * (max - min) ) + min
@@ -30,7 +34,7 @@ function create(initialSeed) {
     if ( !isNaN(array) )
       return !get(array)
     if (!array)
-      array = [0, 1] 
+      array = [0, 1]
     return array[ get(array.length) ]
   }
 

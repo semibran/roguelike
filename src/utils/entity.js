@@ -2,9 +2,24 @@ import { Cell, World, FOV } from './index'
 
 export default { create }
 
-function create(type, sprite, walkable) {
+function create(options) {
 
-  walkable = !!walkable
+  let entity = {
+    entityType: null,
+    kind: null
+  }
+
+  let props = {
+    type: 'entity',
+    wandering: true,
+    health: 1,
+    seeing: {},
+    known: {},
+    world: null,
+    cell: null
+  }
+
+  Object.assign(entity, options, props)
 
   let path = null
 
@@ -12,11 +27,11 @@ function create(type, sprite, walkable) {
     let cells = FOV.get(entity.world.data, entity.cell, 7)
     entity.seeing = {}
     for (var cell of cells) {
-      let type = World.tiles[ entity.world.getAt(cell) ].name
-      let other = entity.world.entitiesAt(cell)[0]
+      let kind = World.tiles[ entity.world.getAt(cell) ].name
+      let other = entity.world.elementsAt(cell)[0]
       if (other)
-        type = other.type
-      entity.known[cell] = type
+        kind = other.kind
+      entity.known[cell] = kind
       entity.seeing[cell] = true
     }
   }
@@ -30,15 +45,19 @@ function create(type, sprite, walkable) {
     let id = world.getAt(target)
     let tile = World.tiles[id]
     let entities = world.entitiesAt(target)
-    if (tile.walkable) {
-      let enemies = entities.filter(entity => !entity.walkable)
-      if (!enemies.length) {
+    let items    = world.itemsAt(target)
+    if (entities.length) {
+      let enemy = entities[0]
+      attack(enemy)
+    } else if (tile.walkable) {
+      if (!entities.length) {
         entity.cell = target
+        if (items.length) {
+          let item = items[0]
+          entity.collect(item)
+        }
         moved = true
         look()
-      } else {
-        let enemy = enemies[0]
-        attack(enemy)
       }
     } else if (tile.door) {
       world.openDoor(target)
@@ -67,20 +86,22 @@ function create(type, sprite, walkable) {
     return entity.move(dist)
   }
 
-  function attack(entity) {
-    entity.health--
-    if (entity.health <= 0){
-      let entities = entity.world.entities
-      let index = entities.indexOf(entity)
-      if (index !== -1)
-        entities.splice(index, 1)
+  function attack(other) {
+    other.health--
+    if (other.health <= 0){
+      entity.world.kill(other)
       look()
     }
   }
 
-  let props   = { type, sprite, walkable, wandering: true, health: 1, seeing: {}, known: {}, world: null, cell: null }
-  let methods = { look, move, moveTo }
-  let entity  = Object.assign({}, props, methods)
+  function collect(item) {
+    if ( Cell.isEqual(entity.cell, item.cell) ) {
+      if (item.itemType === 'money')
+        console.log(`Found ${item.value} gold.`)
+      entity.world.kill(item)
+    }
+  }
 
-  return entity
+  let methods = { look, move, moveTo, attack, collect }
+  return Object.assign(entity, methods)
 }

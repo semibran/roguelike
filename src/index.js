@@ -1,53 +1,12 @@
-import { Dungeon, World, Entity, Cell, Rect, RNG } from './utils/index'
+import { Dungeon, World, Entity, Item, Cell, Rect, RNG, Colors } from './utils/index'
 
 const WORLD_SIZE = 25
 const { FLOOR, WALL, DOOR, DOOR_OPEN, DOOR_HIDDEN, STAIRS, TRAP } = World
-
-let Colors = function () {
-
-  let lighter = {}
-  let darker  = {}
-
-  function lighten(color) {
-    return null
-  }
-
-  function darken(color) {
-    return null
-  }
-
-  return {
-
-    // High-contrast shades
-    RED:     [255,   0,   0],
-    YELLOW:  [255, 255,   0],
-    LIME:    [  0, 255,   0],
-    CYAN:    [  0, 255, 255],
-    BLUE:    [  0,   0, 255],
-    MAGENTA: [255,   0, 255],
-
-    // Darker ones
-    MAROON: [128,   0,   0],
-    OLIVE:  [128, 128,   0],
-    GREEN:  [  0, 128,   0],
-    TEAL:   [  0, 128, 128],
-    NAVY:   [  0,   0, 128],
-    PURPLE: [128,   0, 128],
-
-    // Monochromes
-    WHITE: [255, 255, 255],
-    GRAY:  [128, 128, 128],
-    BLACK: [  0,   0,   0],
-
-    lighten, darken
-
-  }
-
-}()
-
 const { RED, MAROON, YELLOW, OLIVE, LIME, GREEN, CYAN, TEAL, BLUE, NAVY, MAGENTA, PURPLE, WHITE, GRAY, BLACK } = Colors
 
 const sprites = {
+
+  // Tiles
   floor:       [String.fromCharCode(183), TEAL],
   wall:        ['#', OLIVE],
   door:        ['+', MAROON],
@@ -55,9 +14,17 @@ const sprites = {
   door_secret: ['#', OLIVE],
   stairs:      ['>', WHITE],
   trap:        ['^', MAGENTA],
-  hero:        ['@', WHITE],
+
+  // Entities
+  human:       ['@', WHITE],
   wyrm:        ['w', LIME],
-  replica:     ['J', BLUE]
+  replica:     ['J', BLUE],
+
+  // Items
+  gold:        ['$', YELLOW],
+  silver:      ['$', WHITE],
+  copper:      ['$', MAROON]
+
 }
 
 // TODO: Change these to key/value pairs with data on each enemy
@@ -71,17 +38,68 @@ const enemies = ['wyrm', 'replica']
 //
 const rng = RNG.create()
 
-function generate() {
-  let world = Dungeon.create(WORLD_SIZE, rng)
-  let hero = Entity.create('hero', sprites.hero)
-  world.spawn(STAIRS, 'center')
-  world.spawn(TRAP)
-  world.spawn(hero)
+function spawnEnemies(world) {
   let i = 10
   while (i--) {
-    let type = rng.choose(enemies)
-    world.spawn( Entity.create(type, sprites[type]) )
+    let kind = rng.choose(enemies)
+    let options = { entityType: 'enemy', kind }
+    let enemy = Entity.create(options)
+    world.spawn(enemy)
   }
+}
+
+let money = {
+  copper: {
+    range: [4, 16]
+  },
+  silver: {
+    range: [32, 128],
+    chance: 0.10
+  },
+  gold: {
+    range: [256, 1024],
+    chance: 0.01
+  }
+}
+function spawnMoney(world) {
+
+  let i = 10
+
+  while (i--) {
+
+    let num = rng.get(100) + 1
+    let lowest = 1
+    let rarest = null
+    for (let kind in money) {
+      let { range, chance } = money[kind]
+      if (!chance)
+        chance = 1
+      if (chance <= lowest && num <= chance * 100) {
+        lowest = chance
+        rarest = kind
+      }
+    }
+
+    let kind  = rarest
+    let value = rng.get(money[kind].range)
+
+    let options = { itemType: 'money', kind, value }
+    let item = Item.create(options)
+
+    world.spawn(item)
+
+  }
+
+}
+
+function generate() {
+  let world = Dungeon.create(WORLD_SIZE, rng)
+  let hero = Entity.create( { entityType: 'hero', kind: 'human' } )
+  world.spawn(hero)
+  world.spawn(STAIRS, 'center')
+  world.spawn(TRAP)
+  spawnEnemies(world)
+  spawnMoney(world)
   for (let entity of world.entities)
     entity.look()
   return {world, hero}
