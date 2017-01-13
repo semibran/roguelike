@@ -17,8 +17,7 @@ function create(initialSeed) {
     if (a === 0) {
       let x = Math.sin(currentSeed++) * 10000
       return x - Math.floor(x)
-    }
-    else if (a === 1)
+    } else if (a === 1)
       max = min, min = 0
     if (min > max)
       [min, max] = [max, min]
@@ -31,14 +30,14 @@ function create(initialSeed) {
     if ( !isNaN(array) )
       return !get(array)
     if (!array)
-      array = [0, 1]
+      array = [0, 1] 
     return array[ get(array.length) ]
   }
 
   function seed(newSeed) {
     if ( !isNaN(newSeed) )
       initialSeed = currentSeed = newSeed
-    return initialSeed
+    return currentSeed
   }
 
 }

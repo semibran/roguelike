@@ -1,65 +1,22 @@
-import { Generator, World, Entity, Cell, Rect, RNG } from './utils/index'
+import { Dungeon, World, Entity, Cell, Rect, RNG } from './utils/index'
 
 const WORLD_SIZE = 25
 const {FLOOR, WALL, DOOR, DOOR_OPEN, DOOR_HIDDEN, STAIRS} = World
 
 const sprites = {
-  floor: {
-    char: String.fromCharCode(183),
-    color: 'white'
-  },
-  wall: {
-    char: '#',
-    color: 'teal'
-  },
-  door: {
-    char: '+',
-    color: 'yellow'
-  },
-  door_open: {
-    char: '/',
-    color: 'yellow'
-  },
-  door_hidden: {
-    char: '#',
-    color: 'teal'
-  },
-  stairs: {
-    char: '>',
-    color: 'white'
-  },
-  hero: {
-    char: '@',
-    color: 'white'
-  },
-  wyrm: {
-    char: 'd',
-    color: 'lime'
-  },
-  axolotl: {
-    char: 'a',
-    color: 'cyan'
-  },
-  lullaby: {
-    char: 'o',
-    color: 'green'
-  },
-  gatling: {
-    char: 'G',
-    color: 'white'
-  },
-  wasp: {
-    char: 'b',
-    color: 'yellow'
-  },
-  replica: {
-    char: 'J',
-    color: 'blue'
-  }
+  floor:       [String.fromCharCode(183), 'white'],
+  wall:        ['#', 'cyan'],
+  door:        ['+', 'olive'],
+  door_open:   ['/', 'olive'],
+  door_secret: ['#', 'cyan'],
+  stairs:      ['>', 'white'],
+  hero:        ['@', 'white'],
+  wyrm:        ['w', 'lime'],
+  replica:     ['J', 'blue']
 }
 
 // TODO: Change these to key/value pairs with data on each enemy
-const enemies = ['wyrm', 'axolotl', 'lullaby', 'gatling', 'wasp', 'replica']
+const enemies = ['wyrm', 'replica']
 
 // Use `RNG.create(seed)` to seed the RNG, where `seed` is some
 // number like `9820.083045702477`. Seeding the RNG allows you
@@ -70,9 +27,9 @@ const enemies = ['wyrm', 'axolotl', 'lullaby', 'gatling', 'wasp', 'replica']
 const rng = RNG.create()
 
 function generate() {
-  let world = Generator.createDungeon(WORLD_SIZE, rng)
+  let world = Dungeon.create(WORLD_SIZE, rng)
   let hero = Entity.create('hero', sprites.hero)
-  world.spawn(STAIRS)
+  world.spawn(STAIRS, 'center')
   world.spawn(hero)
   let i = 10
   while (i--) {
@@ -91,7 +48,7 @@ new Vue({
   },
   methods: {
     onclick: function (index) {
-      let {world, hero} = this
+      let {world, hero, debug} = this
       let cell = hero.cell
       let targetX = index % WORLD_SIZE
       let targetY = (index - targetX) / WORLD_SIZE
@@ -103,7 +60,7 @@ new Vue({
         return
       }
 
-      if ( !hero.known[target] )
+      if ( !hero.known[target] && !debug )
         return
 
       function move() {
@@ -129,16 +86,16 @@ new Vue({
       let view = []
       world.data.forEach((id, index) => {
         let cell = Cell.fromIndex(index, WORLD_SIZE)
-        let char = ' '
-        let color = 'gray'
+        let char = ' ', color
         let type = hero.known[cell]
         if (!type && debug)
           type = World.tiles[ world.getAt(cell) ].name
         if (type) {
-          let sprite = sprites[type]
-          char = sprite.char
-          if ( hero.seeing[cell] )
-            color = sprite.color
+          [char, color] = sprites[type]
+          if ( !hero.seeing[cell] )
+            color = 'gray'
+          else if ( Array.isArray(color) )
+            color = RNG.choose(color)
         }
         view.push( {char, color} )
       })
