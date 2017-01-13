@@ -1360,6 +1360,8 @@ function findDoors(data, rooms, mazes) {
         var _next = track.pop();
         if (_next && _next !== node) {
           stack.push(_next);
+          track.push(_next);
+          // console.log('Backtracking to', next.type)
           break;
         }
       }
@@ -1454,7 +1456,7 @@ function findDoors(data, rooms, mazes) {
         var regions = connectorRegions[_id6];
         var _next2 = getNext(regions, node);
         if (_next2) {
-          var lucky = rng$1.choose(10);
+          var lucky = rng$1.choose(5);
           var isIncluded = _id6 in doorRegions;
           var isConnected = node.connections.includes(_next2);
           var isMain = connected.has(_next2) && !lucky;
@@ -1754,16 +1756,53 @@ var WORLD_SIZE = 25;
 var STAIRS = World$$1.STAIRS;
 
 
+var Colors = function () {
+
+  return {
+
+    // High-contrast shades
+    RED: [255, 0, 0],
+    YELLOW: [255, 255, 0],
+    LIME: [0, 255, 0],
+    CYAN: [0, 255, 255],
+    BLUE: [0, 0, 255],
+    MAGENTA: [255, 0, 255],
+
+    // Darker ones
+    MAROON: [128, 0, 0],
+    OLIVE: [128, 128, 0],
+    GREEN: [0, 128, 0],
+    TEAL: [0, 128, 128],
+    NAVY: [0, 0, 128],
+    PURPLE: [128, 0, 128],
+
+    // Monochromes
+    WHITE: [255, 255, 255],
+    GRAY: [128, 128, 128],
+    BLACK: [0, 0, 0]
+
+  };
+}();
+
+var MAROON = Colors.MAROON;
+var OLIVE = Colors.OLIVE;
+var LIME = Colors.LIME;
+var TEAL = Colors.TEAL;
+var BLUE = Colors.BLUE;
+var WHITE = Colors.WHITE;
+var GRAY = Colors.GRAY;
+
+
 var sprites = {
-  floor: [String.fromCharCode(183), 'white'],
-  wall: ['#', 'cyan'],
-  door: ['+', 'olive'],
-  door_open: ['/', 'olive'],
-  door_secret: ['#', 'cyan'],
-  stairs: ['>', 'white'],
-  hero: ['@', 'white'],
-  wyrm: ['w', 'lime'],
-  replica: ['J', 'blue']
+  floor: [String.fromCharCode(183), TEAL],
+  wall: ['#', OLIVE],
+  door: ['+', MAROON],
+  door_open: ['/', MAROON],
+  door_secret: ['#', OLIVE],
+  stairs: ['>', WHITE],
+  hero: ['@', WHITE],
+  wyrm: ['w', LIME],
+  replica: ['J', BLUE]
 };
 
 // TODO: Change these to key/value pairs with data on each enemy
@@ -1818,7 +1857,7 @@ function generate() {
 new Vue({
   el: '#app',
   data: function data() {
-    return Object.assign(generate(), { debug: false });
+    return Object.assign(generate(), { log: [], debug: false });
   },
   methods: {
     onclick: function onclick(index) {
@@ -1870,7 +1909,8 @@ new Vue({
           char = _sprites$type[0];
           color = _sprites$type[1];
 
-          if (!hero.seeing[cell]) color = 'gray';else if (Array.isArray(color)) color = RNG.choose(color);
+          if (!hero.seeing[cell]) color = GRAY;
+          if (Array.isArray(color)) color = 'rgb(' + color.join(', ') + ')';
         }
         view.push({ char: char, color: color });
       });

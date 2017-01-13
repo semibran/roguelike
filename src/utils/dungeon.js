@@ -292,6 +292,8 @@ function findDoors(data, rooms, mazes) {
         let next = track.pop()
         if (next && next !== node) {
           stack.push(next)
+          track.push(next)
+          // console.log('Backtracking to', next.type)
           break
         }
       }
@@ -337,7 +339,7 @@ function findDoors(data, rooms, mazes) {
       let regions = connectorRegions[id]
       let next = getNext(regions, node)
       if (next) {
-        let lucky = rng.choose(10)
+        let lucky = rng.choose(5)
         let isIncluded  = id in doorRegions
         let isConnected = node.connections.includes(next)
         let isMain      = connected.has(next) && !lucky

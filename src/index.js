@@ -1,18 +1,49 @@
 import { Dungeon, World, Entity, Cell, Rect, RNG } from './utils/index'
 
 const WORLD_SIZE = 25
-const {FLOOR, WALL, DOOR, DOOR_OPEN, DOOR_HIDDEN, STAIRS} = World
+const { FLOOR, WALL, DOOR, DOOR_OPEN, DOOR_HIDDEN, STAIRS } = World
+
+let Colors = function () {
+
+  return {
+
+    // High-contrast shades
+    RED:     [255,   0,   0],
+    YELLOW:  [255, 255,   0],
+    LIME:    [  0, 255,   0],
+    CYAN:    [  0, 255, 255],
+    BLUE:    [  0,   0, 255],
+    MAGENTA: [255,   0, 255],
+
+    // Darker ones
+    MAROON: [128,   0,   0],
+    OLIVE:  [128, 128,   0],
+    GREEN:  [  0, 128,   0],
+    TEAL:   [  0, 128, 128],
+    NAVY:   [  0,   0, 128],
+    PURPLE: [128,   0, 128],
+
+    // Monochromes
+    WHITE: [255, 255, 255],
+    GRAY:  [128, 128, 128],
+    BLACK: [  0,   0,   0]
+
+  }
+
+}()
+
+const { RED, MAROON, YELLOW, OLIVE, LIME, GREEN, CYAN, TEAL, BLUE, NAVY, MAGENTA, PURPLE, WHITE, GRAY, BLACK } = Colors
 
 const sprites = {
-  floor:       [String.fromCharCode(183), 'white'],
-  wall:        ['#', 'cyan'],
-  door:        ['+', 'olive'],
-  door_open:   ['/', 'olive'],
-  door_secret: ['#', 'cyan'],
-  stairs:      ['>', 'white'],
-  hero:        ['@', 'white'],
-  wyrm:        ['w', 'lime'],
-  replica:     ['J', 'blue']
+  floor:       [String.fromCharCode(183), TEAL],
+  wall:        ['#', OLIVE],
+  door:        ['+', MAROON],
+  door_open:   ['/', MAROON],
+  door_secret: ['#', OLIVE],
+  stairs:      ['>', WHITE],
+  hero:        ['@', WHITE],
+  wyrm:        ['w', LIME],
+  replica:     ['J', BLUE]
 }
 
 // TODO: Change these to key/value pairs with data on each enemy
@@ -44,7 +75,7 @@ function generate() {
 new Vue({
   el: '#app',
   data: function () {
-    return Object.assign(generate(), { debug: false })
+    return Object.assign(generate(), { log: [], debug: false })
   },
   methods: {
     onclick: function (index) {
@@ -93,9 +124,9 @@ new Vue({
         if (type) {
           [char, color] = sprites[type]
           if ( !hero.seeing[cell] )
-            color = 'gray'
-          else if ( Array.isArray(color) )
-            color = RNG.choose(color)
+            color = GRAY
+          if ( Array.isArray(color) )
+            color = `rgb(${color.join(', ')})`
         }
         view.push( {char, color} )
       })
