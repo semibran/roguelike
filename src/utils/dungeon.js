@@ -283,32 +283,20 @@ function findDoors(data, rooms, mazes) {
         next.connections.push(node)
       }
     } else {
-      let nodeConnections = connected.get(node)
-      if (nodeConnections && nodeConnections.length === 1) {
-        let last = nodeConnections[0]
-        let lastConnections = connected.get(last)
-        lastConnections.splice(lastConnections.indexOf(node), 1)
+      if (node.type === 'maze' && node.connections.length === 1) {
+        let last = node.connections[0]
+        last.connections.splice(last.connections.indexOf(node), 1)
         connected.delete(node)
       }
-      let next = track.pop()
-      if (next && next !== node)
-        stack.push(next)
-    }
-  }
-
-  let i = 2
-  while (i--)
-    for (let room of disconnected) {
-      let edges = Object.keys(room.edges).filter(edge => edge in connectorRegions && getNext(connectorRegions[edge], room).connections.length)
-      if (edges.length) {
-        let connector = rng.choose(edges)
-        let next = getNext(connectorRegions[connector], room)
-        doorRegions[connector] = [room, next]
-        room.connections.push(next)
-        next.connections.push(room)
-        disconnected.delete(room)
+      while (track.length) {
+        let next = track.pop()
+        if (next && next !== node) {
+          stack.push(next)
+          break
+        }
       }
     }
+  }
 
   // for (let connector in connectorRegions)
   //   World.setAt(data, Cell.fromString(connector), DOOR_OPEN)
@@ -405,7 +393,7 @@ function generate(size, seed) {
   for (let id in doors) {
     let cell = Cell.fromString(id)
     let regions = doors[id]
-    let room = regions[0]
+    let room = regions.filter(region => region.type !== 'maze')[0]
     let type = DOOR
     let neighbors = Cell.getNeighbors(cell).filter( neighbor => endKeys.includes( neighbor.toString() ) )
     if ( !neighbors.length && rooms.list.includes(room) && rng.choose() ) {
