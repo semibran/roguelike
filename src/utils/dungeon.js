@@ -2,9 +2,11 @@ import { RNG, World, Cell, Rect } from './index'
 
 const { FLOOR, WALL, DOOR, DOOR_OPEN, DOOR_SECRET, STAIRS, TRAP } = World
 
-export default { create }
+let events = {}
 
 let rng = RNG.create()
+
+export default { create }
 
 function findRoom(min, max, worldSize) {
   let w = rng.get((max - min) / 2 + 1) * 2 + min
@@ -522,40 +524,72 @@ function create(size, seed) {
     return path
   }
 
-  function openDoor(cell) {
+  function openDoor(cell, entity) {
+    if (!entity)
+      entity = null
     let data = world.data.slice()
-    let id = getAt(cell)
-    if (World.tiles[id].door)
-      World.setAt(data, cell, DOOR_OPEN)
-    world.data = data
-    return world
-  }
-
-  function closeDoor(cell) {
-    let data = world.data.slice()
-    let id = getAt(cell)
-    if (World.tiles[id].door)
-      World.setAt(data, cell, DOOR)
-    world.data = data
-    return world
-  }
-
-  function toggleDoor(cell) {
-    let data = world.data.slice()
-    let oldId = getAt(cell)
-    let newId = DOOR_OPEN
+    let id   = getAt(cell)
     let tile = World.tiles[id]
-    if (tile.door) {
-      if (tile.walkable)
-        newId = DOOR
-      World.setAt(data, cell, newId)
+    if (tile.door && !tile.walkable) {
+      World.setAt(data, cell, DOOR_OPEN)
+      world.data = data
+      emit('door-opened', entity, cell, id === DOOR_SECRET)
+      return true
     }
-    world.data = data
+    return false
+  }
+
+  function closeDoor(cell, entity) {
+    if (!entity)
+      entity = null
+    let data = world.data.slice()
+    let tile = getTileAt(cell)
+    if (tile.door && tile.walkable) {
+      World.setAt(data, cell, DOOR)
+      world.data = data
+      emit('door-closed', entity, cell)
+      return true
+    }
+    return false
+  }
+
+  function toggleDoor(cell, entity) {
+    let tile = getTileAt(cell)
+    if (tile.door)
+      if (!tile.walkable)
+        return openDoor(cell, entity)
+      else
+        return closeDoor(cell, entity)
+    return false
+  }
+
+  function emit(event) {
+    let args = Array.prototype.slice.call(arguments, 1)
+    let callbacks = events[event]
+    if (!callbacks)
+      return
+    for (let callback of callbacks)
+      callback.apply(null, args)
+  }
+
+  function on(event, callback) {
+    let callbacks = events[event]
+    if (!callbacks)
+      callbacks = events[event] = new Set
+    callbacks.add(callback)
     return world
+  }
+
+  function off(event, callback) {
+    let callbacks = events[event]
+    if (!callbacks || !callbacks.has(callback))
+      return false
+    callbacks.remove(callback)
+    return true
   }
 
   let props   = { size, data, rooms, entities: [], items: [] }
-  let methods = { spawn, kill, elementsAt, entitiesAt, itemsAt, getAt, getTileAt, setAt, findPath, openDoor, closeDoor, toggleDoor }
+  let methods = { spawn, kill, elementsAt, entitiesAt, itemsAt, getAt, getTileAt, setAt, findPath, openDoor, closeDoor, toggleDoor, on, emit }
 
   let world = Object.assign({}, props, methods)
   return world

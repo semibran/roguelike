@@ -32,7 +32,11 @@ function isEqual(a, b) {
 
 function isEdge(cell, size) {
   let [x, y] = cell
-  return x === 0 || y === 0 || x === size - 1 || y === size - 1
+  let rect = [0, 0, size, size]
+  if ( Array.isArray(size) )
+    rect = size
+  let [rectX, rectY, rectWidth, rectHeight] = rect
+  return isInside(cell, size) && (x === rectX || x === rectX + rectWidth - 1 || y === rectY || y === rectY + rectHeight - 1)
 }
 
 function isInside(cell, size) {

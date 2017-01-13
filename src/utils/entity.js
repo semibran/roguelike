@@ -52,15 +52,17 @@ function create(options) {
     } else if (tile.walkable) {
       if (!entities.length) {
         entity.cell = target
+        world.emit('move', entity, target)
         if (items.length) {
           let item = items[0]
           entity.collect(item)
+        } else {
+          moved = true
         }
-        moved = true
         look()
       }
     } else if (tile.door) {
-      world.openDoor(target)
+      world.openDoor(target, entity)
       look()
     }
     return moved
@@ -88,6 +90,7 @@ function create(options) {
 
   function attack(other) {
     other.health--
+    entity.world.emit('attack', entity, other)
     if (other.health <= 0){
       entity.world.kill(other)
       look()
@@ -96,9 +99,8 @@ function create(options) {
 
   function collect(item) {
     if ( Cell.isEqual(entity.cell, item.cell) ) {
-      if (item.itemType === 'money')
-        console.log(`Found ${item.value} gold.`)
       entity.world.kill(item)
+      entity.world.emit('item', entity, item)
     }
   }
 

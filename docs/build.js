@@ -219,7 +219,17 @@ function isEdge(cell, size) {
       x = _cell2[0],
       y = _cell2[1];
 
-  return x === 0 || y === 0 || x === size - 1 || y === size - 1;
+  var rect = [0, 0, size, size];
+  if (Array.isArray(size)) rect = size;
+
+  var _rect = rect,
+      _rect2 = slicedToArray(_rect, 4),
+      rectX = _rect2[0],
+      rectY = _rect2[1],
+      rectWidth = _rect2[2],
+      rectHeight = _rect2[3];
+
+  return isInside(cell, size) && (x === rectX || x === rectX + rectWidth - 1 || y === rectY || y === rectY + rectHeight - 1);
 }
 
 function isInside(cell, size) {
@@ -230,12 +240,12 @@ function isInside(cell, size) {
   var rect = [0, 0, size, size];
   if (Array.isArray(size)) rect = size;
 
-  var _rect = rect,
-      _rect2 = slicedToArray(_rect, 4),
-      rectX = _rect2[0],
-      rectY = _rect2[1],
-      rectWidth = _rect2[2],
-      rectHeight = _rect2[3];
+  var _rect3 = rect,
+      _rect4 = slicedToArray(_rect3, 4),
+      rectX = _rect4[0],
+      rectY = _rect4[1],
+      rectWidth = _rect4[2],
+      rectHeight = _rect4[3];
 
   return x >= rectX && y >= rectY && x < rectX + rectWidth && y < rectY + rectHeight;
 }
@@ -849,15 +859,17 @@ function create$2(options) {
     } else if (tile.walkable) {
       if (!entities.length) {
         entity.cell = target;
+        world.emit('move', entity, target);
         if (items.length) {
           var item = items[0];
           entity.collect(item);
+        } else {
+          moved = true;
         }
-        moved = true;
         look();
       }
     } else if (tile.door) {
-      world.openDoor(target);
+      world.openDoor(target, entity);
       look();
     }
     return moved;
@@ -889,6 +901,7 @@ function create$2(options) {
 
   function attack(other) {
     other.health--;
+    entity.world.emit('attack', entity, other);
     if (other.health <= 0) {
       entity.world.kill(other);
       look();
@@ -897,8 +910,8 @@ function create$2(options) {
 
   function collect(item) {
     if (Cell.isEqual(entity.cell, item.cell)) {
-      if (item.itemType === 'money') console.log('Found ' + item.value + ' gold.');
       entity.world.kill(item);
+      entity.world.emit('item', entity, item);
     }
   }
 
@@ -934,9 +947,11 @@ var DOOR_OPEN$2 = World$$1.DOOR_OPEN;
 var DOOR_SECRET$1 = World$$1.DOOR_SECRET;
 
 
-var Dungeon$$1 = { create: create$4 };
+var events = {};
 
 var rng$1 = RNG.create();
+
+var Dungeon$$1 = { create: create$4 };
 
 function findRoom(min, max, worldSize) {
   var w = rng$1.get((max - min) / 2 + 1) * 2 + min;
@@ -1218,9 +1233,9 @@ function findMazes(data) {
   while (nodes.size) {
     var maze = { cells: {}, ends: {}, type: 'maze' };
     var start = rng$1.choose([].concat(toConsumableArray(nodes)));
-    var _id = Cell.fromString(start);
-    var stack = [_id];
-    var track = [_id];
+    var id = Cell.fromString(start);
+    var stack = [id];
+    var track = [id];
     var end = true;
     mazes.ends[start] = maze.ends[start] = maze;
     while (stack.length) {
@@ -1270,8 +1285,8 @@ function findMazes(data) {
 
 function findConnectors(data, rooms, mazes) {
   var connectors = {};
-  for (var _id2 in rooms.edges) {
-    var cell = Cell.fromString(_id2);
+  for (var id in rooms.edges) {
+    var cell = Cell.fromString(id);
     var neighbors = Cell.getNeighbors(cell);
     var regions = [];
     var _iteratorNormalCompletion5 = true;
@@ -1382,8 +1397,8 @@ function findDoors(data, rooms, mazes) {
       var next = connectors[connector];
       if (next) {
         // Remove extraneous connectors
-        for (var _id3 in next.cells) {
-          var cell = Cell.fromString(_id3);
+        for (var id in next.cells) {
+          var cell = Cell.fromString(id);
           var neighbors = Cell.getNeighbors(cell);
           var _iteratorNormalCompletion8 = true;
           var _didIteratorError8 = false;
@@ -1478,12 +1493,12 @@ function findDoors(data, rooms, mazes) {
     var prospects = [];
     // Normalize based on type
     if (node.type === 'room') {
-      for (var _id4 in node.edges) {
-        if (_id4 in connectorRegions) prospects.push(_id4);
+      for (var _id in node.edges) {
+        if (_id in connectorRegions) prospects.push(_id);
       }
     } else if (node.type === 'maze') {
-      for (var _id5 in node.cells) {
-        var _cell = Cell.fromString(_id5);
+      for (var _id2 in node.cells) {
+        var _cell = Cell.fromString(_id2);
         var _neighbors = Cell.getNeighbors(_cell);
         var _iteratorNormalCompletion10 = true;
         var _didIteratorError10 = false;
@@ -1517,20 +1532,20 @@ function findDoors(data, rooms, mazes) {
 
     try {
       for (var _iterator11 = prospects[Symbol.iterator](), _step11; !(_iteratorNormalCompletion11 = (_step11 = _iterator11.next()).done); _iteratorNormalCompletion11 = true) {
-        var _id6 = _step11.value;
+        var _id3 = _step11.value;
 
-        var _cell2 = Cell.fromString(_id6);
-        var regions = connectorRegions[_id6];
+        var _cell2 = Cell.fromString(_id3);
+        var regions = connectorRegions[_id3];
         var _next2 = getNext(regions, node);
         if (_next2) {
           var lucky = rng$1.choose(5);
-          var isIncluded = _id6 in doorRegions;
+          var isIncluded = _id3 in doorRegions;
           var isConnected = node.connections.has(_next2);
           var isMain = connected.has(_next2) && !lucky;
           var nearby = !!Cell.getNeighbors(_cell2, true).filter(function (neighbor) {
             return neighbor in doorRegions;
           }).length;
-          if (!isIncluded && !isConnected && !isMain && !nearby) connectors[_id6] = _next2;
+          if (!isIncluded && !isConnected && !isMain && !nearby) connectors[_id3] = _next2;
         }
       }
     } catch (err) {
@@ -1637,8 +1652,8 @@ function generate$1(size, seed) {
     for (var _iterator13 = mazes.list[Symbol.iterator](), _step13; !(_iteratorNormalCompletion13 = (_step13 = _iterator13.next()).done); _iteratorNormalCompletion13 = true) {
       var maze = _step13.value;
 
-      for (var _id8 in maze.cells) {
-        World$$1.setAt(data, Cell.fromString(_id8), FLOOR$2);
+      for (var _id4 in maze.cells) {
+        World$$1.setAt(data, Cell.fromString(_id4), FLOOR$2);
       }
     }
   } catch (err) {
@@ -1661,9 +1676,9 @@ function generate$1(size, seed) {
   var ends = fillEnds(data, mazes, doors);
   var endKeys = ends.map(Cell.toString);
 
-  for (var _id7 in doors) {
-    var cell = Cell.fromString(_id7);
-    var regions = doors[_id7];
+  for (var id in doors) {
+    var cell = Cell.fromString(id);
+    var regions = doors[id];
     var room = regions.filter(function (region) {
       return region.type !== 'maze';
     })[0];
@@ -1813,37 +1828,78 @@ function create$4(size, seed) {
     return path;
   }
 
-  function openDoor(cell) {
+  function openDoor(cell, entity) {
+    if (!entity) entity = null;
     var data = world.data.slice();
     var id = getAt(cell);
-    if (World$$1.tiles[id].door) World$$1.setAt(data, cell, DOOR_OPEN$2);
-    world.data = data;
-    return world;
-  }
-
-  function closeDoor(cell) {
-    var data = world.data.slice();
-    var id = getAt(cell);
-    if (World$$1.tiles[id].door) World$$1.setAt(data, cell, DOOR$2);
-    world.data = data;
-    return world;
-  }
-
-  function toggleDoor(cell) {
-    var data = world.data.slice();
-    var oldId = getAt(cell);
-    var newId = DOOR_OPEN$2;
     var tile = World$$1.tiles[id];
-    if (tile.door) {
-      if (tile.walkable) newId = DOOR$2;
-      World$$1.setAt(data, cell, newId);
+    if (tile.door && !tile.walkable) {
+      World$$1.setAt(data, cell, DOOR_OPEN$2);
+      world.data = data;
+      emit('door-opened', entity, cell, id === DOOR_SECRET$1);
+      return true;
     }
-    world.data = data;
+    return false;
+  }
+
+  function closeDoor(cell, entity) {
+    if (!entity) entity = null;
+    var data = world.data.slice();
+    var tile = getTileAt(cell);
+    if (tile.door && tile.walkable) {
+      World$$1.setAt(data, cell, DOOR$2);
+      world.data = data;
+      emit('door-closed', entity, cell);
+      return true;
+    }
+    return false;
+  }
+
+  function toggleDoor(cell, entity) {
+    var tile = getTileAt(cell);
+    if (tile.door) if (!tile.walkable) return openDoor(cell, entity);else return closeDoor(cell, entity);
+    return false;
+  }
+
+  function emit(event) {
+    var args = Array.prototype.slice.call(arguments, 1);
+    var callbacks = events[event];
+    if (!callbacks) return;
+    var _iteratorNormalCompletion16 = true;
+    var _didIteratorError16 = false;
+    var _iteratorError16 = undefined;
+
+    try {
+      for (var _iterator16 = callbacks[Symbol.iterator](), _step16; !(_iteratorNormalCompletion16 = (_step16 = _iterator16.next()).done); _iteratorNormalCompletion16 = true) {
+        var callback = _step16.value;
+
+        callback.apply(null, args);
+      }
+    } catch (err) {
+      _didIteratorError16 = true;
+      _iteratorError16 = err;
+    } finally {
+      try {
+        if (!_iteratorNormalCompletion16 && _iterator16.return) {
+          _iterator16.return();
+        }
+      } finally {
+        if (_didIteratorError16) {
+          throw _iteratorError16;
+        }
+      }
+    }
+  }
+
+  function on(event, callback) {
+    var callbacks = events[event];
+    if (!callbacks) callbacks = events[event] = new Set();
+    callbacks.add(callback);
     return world;
   }
 
   var props = { size: size, data: data, rooms: rooms, entities: [], items: [] };
-  var methods = { spawn: spawn, kill: kill, elementsAt: elementsAt, entitiesAt: entitiesAt, itemsAt: itemsAt, getAt: getAt, getTileAt: getTileAt, setAt: setAt, findPath: findPath, openDoor: openDoor, closeDoor: closeDoor, toggleDoor: toggleDoor };
+  var methods = { spawn: spawn, kill: kill, elementsAt: elementsAt, entitiesAt: entitiesAt, itemsAt: itemsAt, getAt: getAt, getTileAt: getTileAt, setAt: setAt, findPath: findPath, openDoor: openDoor, closeDoor: closeDoor, toggleDoor: toggleDoor, on: on, emit: emit };
 
   var world = Object.assign({}, props, methods);
   return world;
@@ -1888,7 +1944,8 @@ var constants$2 = { RED: RED$1, YELLOW: YELLOW$1, LIME: LIME$1, CYAN: CYAN$1, BL
 var methods$2 = { lighten: lighten, darken: darken };
 var Colors = Object.assign({}, constants$2, methods$2);
 
-var WORLD_SIZE = 25;
+var DISPLAY_SIZE = 25;
+var WORLD_SIZE = DISPLAY_SIZE;
 var STAIRS = World$$1.STAIRS;
 var TRAP = World$$1.TRAP;
 var MAROON = Colors.MAROON;
@@ -1916,7 +1973,7 @@ var sprites = {
   // Entities
   human: ['@', WHITE],
   wyrm: ['w', LIME],
-  replica: ['J', BLUE],
+  slime: ['j', BLUE],
 
   // Items
   gold: ['$', YELLOW],
@@ -1925,17 +1982,18 @@ var sprites = {
 
 };
 
-// TODO: Change these to key/value pairs with data on each enemy
-var enemies = ['wyrm', 'replica'];
-
 // Use `RNG.create(seed)` to seed the RNG, where `seed` is some
-// number like `9820.083045702477`. Seeding the RNG allows you
+// number like `7255.9743678451105`. Seeding the RNG allows you
 // to achieve the same dungeon multiple times for debugging.
 //
 // Leave empty for a random seed.
 //
 var rng = RNG.create();
 
+var attacks = ['bash', 'whack', 'mangle', 'tear apart', 'bite'];
+
+// TODO: Change these to key/value pairs with data on each enemy
+var enemies = ['wyrm', 'slime'];
 function spawnEnemies(world) {
   var i = 10;
   while (i--) {
@@ -2029,21 +2087,47 @@ function generate() {
 new Vue({
   el: '#app',
   data: function data() {
-    return Object.assign(generate(), { log: [], debug: false });
+    var _generate = generate(),
+        world = _generate.world,
+        hero = _generate.hero;
+
+    var log = [];
+
+    if (world.rooms.secret.size) log.push('Something feels off about this dungeon...');else log.push('Oh boy, a dungeon! Let\'s see what kinds of treasure we can find.');
+
+    world.on('door-opened', function (entity, cell, secret) {
+      if (entity === hero) if (!secret) log.push('You open the door.');else log.push('You find a secret room!');
+    });
+
+    world.on('move', function (entity, cell) {
+      if (entity === hero) if (world.getAt(cell) === STAIRS) log.push('There\'s a set of stairs going down here.');
+    });
+
+    world.on('attack', function (entity, other) {
+      var attack = rng.choose(attacks);
+      if (entity === hero) log.push('You ' + attack + ' the ' + other.kind + '!');
+    });
+
+    world.on('item', function (entity, item) {
+      if (entity === hero) if (item.itemType === 'money') log.push('Found ' + item.value + ' gold.');
+    });
+
+    return { world: world, hero: hero, log: log, debug: false };
   },
   methods: {
-    onclick: function onclick(index) {
+    onclick: function onclick(target) {
       var world = this.world,
           hero = this.hero,
-          debug = this.debug;
+          debug = this.debug,
+          log = this.log;
 
       var cell = hero.cell;
-      var targetX = index % WORLD_SIZE;
-      var targetY = (index - targetX) / WORLD_SIZE;
-      var target = [targetX, targetY];
 
       if (Cell.isEqual(cell, target)) {
-        if (world.getAt(cell) === STAIRS) this.descend();
+        if (world.getAt(cell) === STAIRS) {
+          log.push('You head downstairs.');
+          this.descend();
+        }
         return;
       }
 
@@ -2057,9 +2141,34 @@ new Vue({
     },
     ascend: function ascend() {},
     descend: function descend() {
-      var generation = generate();
-      this.world = generation.world;
-      this.hero = generation.hero;
+      var log = this.log;
+
+      var _generate2 = generate(),
+          world = _generate2.world,
+          hero = _generate2.hero;
+
+      if (world.rooms.secret.size) log.push('Something feels off about this dungeon...');
+
+      world.on('door-opened', function (entity, cell, secret) {
+        if (entity === hero) if (!secret) log.push('You open the door.');else log.push('You find a secret room!');
+      });
+
+      world.on('move', function (entity, cell) {
+        if (entity === hero) if (world.getAt(cell) === STAIRS) log.push('There\'s a set of stairs going down here.');
+      });
+
+      world.on('attack', function (entity, other) {
+        var attack = rng.choose(attacks);
+        var punctuation = rng.choose(['.', '!']);
+        if (entity === hero) log.push('You ' + attack + ' the ' + other.kind + punctuation);
+      });
+
+      world.on('item', function (entity, item) {
+        if (entity === hero) if (item.itemType === 'money') log.push('Found ' + item.value + ' gold.');
+      });
+
+      this.world = world;
+      this.hero = hero;
     }
   },
   computed: {
@@ -2070,12 +2179,20 @@ new Vue({
 
       var view = [];
       world.data.forEach(function (id, index) {
-        var cell = Cell.fromIndex(index, WORLD_SIZE);
+        var cell = void 0,
+            _cell = cell = Cell.fromIndex(index, WORLD_SIZE),
+            _cell2 = slicedToArray(_cell, 2),
+            cellX = _cell2[0],
+            cellY = _cell2[1];
+        var type = hero.known[cell];
         var char = ' ',
             color = void 0;
-        var type = hero.known[cell];
-        if (!type && debug) type = World$$1.tiles[world.getAt(cell)].name;
+        if (!type && debug) type = world.getTileAt(cell).name;
         if (type) {
+          if (!(type in sprites)) {
+            throw new TypeError('Unrecognized sprite: ' + type);
+          }
+
           var _sprites$type = slicedToArray(sprites[type], 2);
 
           char = _sprites$type[0];
@@ -2084,7 +2201,13 @@ new Vue({
           if (!hero.seeing[cell]) color = GRAY;
           if (Array.isArray(color)) color = 'rgb(' + color.join(', ') + ')';
         }
-        view.push({ char: char, color: color });
+        // Outside brackets = all tiles are appended to the view
+        //  Inside brackets = only tiles that are needed are appended
+        var style = {
+          color: color
+        };
+        var sprite = { char: char, style: style, cell: cell };
+        view.push(sprite);
       });
       return view;
     }
@@ -2105,6 +2228,10 @@ new Vue({
     game: {
       template: '#game-template',
       props: ['view', 'onclick']
+    },
+    log: {
+      template: '#log-template',
+      props: ['view']
     }
   }
 });
