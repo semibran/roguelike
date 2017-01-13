@@ -310,6 +310,9 @@ function findDoors(data, rooms, mazes) {
       }
     }
 
+  // for (let connector in connectorRegions)
+  //   World.setAt(data, Cell.fromString(connector), DOOR_OPEN)
+
   return doorRegions
 
   // Connectors store the `regions` they connect; get the one that's not `node`
@@ -326,19 +329,20 @@ function findDoors(data, rooms, mazes) {
     let prospects = []
     // Normalize based on type
     if (node.type === 'rect' || node.type === 'diamond') {
+      // console.log(node.type, node.shape)
       for (let id in node.edges)
         if (id in connectorRegions)
           prospects.push(id)
-      // console.log(node.type, node.shape)
     } else if (node.type === 'maze') {
-      for (let id in node.ends) {
-        let cell = Cell.fromString(id)
-        let neighbors = Cell.getNeighbors(cell).map(Cell.toString)
-        for (let neighbor of neighbors)
-          if (neighbor in connectorRegions)
-            prospects.push(neighbor)
-      }
       // console.log(node.type, Object.keys(node.cells).length)
+      for (let id in node.cells) {
+        let cell = Cell.fromString(id)
+        let neighbors = Cell.getNeighbors(cell)
+        for (let neighbor of neighbors) {
+          if (neighbor in connectorRegions)
+            prospects.push(neighbor.toString())
+        }
+      }
     }
     for (let id of prospects) {
       let cell = Cell.fromString(id)
@@ -409,7 +413,7 @@ function generate(size, seed) {
       rooms.normal.delete(room)
       rooms.secret.add(room)
       // console.log(cell)
-    } else if ( rng.choose(10) )
+    } else if ( rng.choose(5) )
       type = FLOOR
     World.setAt(data, cell, type)
   }

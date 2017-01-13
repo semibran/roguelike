@@ -1403,7 +1403,10 @@ function findDoors(data, rooms, mazes) {
         }
       }
     }
-  }return doorRegions;
+  } // for (let connector in connectorRegions)
+  //   World.setAt(data, Cell.fromString(connector), DOOR_OPEN)
+
+  return doorRegions;
 
   // Connectors store the `regions` they connect; get the one that's not `node`
   function getNext(regions, node) {
@@ -1441,13 +1444,15 @@ function findDoors(data, rooms, mazes) {
     var prospects = [];
     // Normalize based on type
     if (node.type === 'rect' || node.type === 'diamond') {
+      // console.log(node.type, node.shape)
       for (var _id4 in node.edges) {
         if (_id4 in connectorRegions) prospects.push(_id4);
-      } // console.log(node.type, node.shape)
+      }
     } else if (node.type === 'maze') {
-      for (var _id5 in node.ends) {
+      // console.log(node.type, Object.keys(node.cells).length)
+      for (var _id5 in node.cells) {
         var _cell = Cell.fromString(_id5);
-        var _neighbors = Cell.getNeighbors(_cell).map(Cell.toString);
+        var _neighbors = Cell.getNeighbors(_cell);
         var _iteratorNormalCompletion11 = true;
         var _didIteratorError11 = false;
         var _iteratorError11 = undefined;
@@ -1456,7 +1461,7 @@ function findDoors(data, rooms, mazes) {
           for (var _iterator11 = _neighbors[Symbol.iterator](), _step11; !(_iteratorNormalCompletion11 = (_step11 = _iterator11.next()).done); _iteratorNormalCompletion11 = true) {
             var _neighbor3 = _step11.value;
 
-            if (_neighbor3 in connectorRegions) prospects.push(_neighbor3);
+            if (_neighbor3 in connectorRegions) prospects.push(_neighbor3.toString());
           }
         } catch (err) {
           _didIteratorError11 = true;
@@ -1473,7 +1478,6 @@ function findDoors(data, rooms, mazes) {
           }
         }
       }
-      // console.log(node.type, Object.keys(node.cells).length)
     }
     var _iteratorNormalCompletion12 = true;
     var _didIteratorError12 = false;
@@ -1638,7 +1642,7 @@ function generate$1(size, seed) {
       rooms.normal.delete(_room2);
       rooms.secret.add(_room2);
       // console.log(cell)
-    } else if (rng$1.choose(10)) type = FLOOR$2;
+    } else if (rng$1.choose(5)) type = FLOOR$2;
     World$$1.setAt(data, cell, type);
   }
 
