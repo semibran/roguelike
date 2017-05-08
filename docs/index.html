@@ -1,30 +1,11 @@
 <!DOCTYPE html>
 <html>
   <head>
-    <title>Roguelike</title>
-    <link rel='stylesheet' href='https://fonts.googleapis.com/css?family=Cutive+Mono'/>
+    <title>Dungeon</title>
     <link rel='stylesheet' href='style.css'/>
-    <script type='text/x-template' id='game-template'>
-    	<div class='view'>
-      	<div class='sprite' v-for='sprite, index in view' v-on:click='onclick(sprite.cell)' v-bind:style='sprite.style'>{{ sprite.char }}</div>
-      </div>
-    </script>
-    <script type='text/x-template' id='log-template'>
-      <div class='log'>
-        <transition-group name="reveal" tag="ul" class="messages">
-        	<li class='message' v-for='message, index in view' v-bind:key='index'>
-            <span class='text'>{{ message }}</span>
-          </li>
-        </ul>
-      </div>
-    </script>
   </head>
   <body>
-    <div id='app'>
-      <game :view='view' :onclick='onclick'></game>
-      <log :view='log'></log>
-    </div>
-    <script src='https://cdnjs.cloudflare.com/ajax/libs/vue/2.0.1/vue.min.js'></script>
+    <div id='app'></div>
     <script src='build.js'></script>
   </body>
 </html>

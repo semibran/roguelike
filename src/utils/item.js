@@ -3,18 +3,13 @@ export default { create }
 function create(options) {
 
   let item = {
-    itemType: null,
     kind: null,
-    value: null,
+    value: 0
   }
 
-  let props = {
-    type: 'item',
-    world: null,
-    cell: null
-  }
-
-  Object.assign(item, options, props)
+  Object.assign(item, options, {
+    type: 'item'
+  })
 
   return item
 

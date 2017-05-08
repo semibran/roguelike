@@ -1,11 +1,15 @@
-import RNG     from './rng'
 import Cell    from './cell'
 import Rect    from './rect'
+import Diamond from './diamond'
+import Circle  from './circle'
 import World   from './world'
-import FOV     from './fov'
-import Entity  from './entity'
+import Actor   from './actor'
 import Item    from './item'
+import AI      from './ai'
+import RNG     from './rng'
 import Dungeon from './dungeon'
-import Colors  from './colors'
+import FOV     from './fov'
+import Game    from './game'
+import Display from './display'
 
-export { RNG, Cell, Rect, World, FOV, Entity, Item, Dungeon, Colors }
+export { Cell, Rect, Diamond, Circle, World, Actor, Item, AI, RNG, Dungeon, FOV, Game, Display }

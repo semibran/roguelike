@@ -1,7 +1,7 @@
 {
   "name": "roguelike",
-  "version": "0.3.0",
-  "description": "Web-based roguelike powered by Vue.js.",
+  "version": "1.0.0",
+  "description": "Pixel-based roguelike",
   "author": "Brandon Semilla (https://github.com/semibran)",
   "repository": {
     "type": "git",
@@ -9,7 +9,7 @@
   },
   "license": "MIT",
   "scripts": {
-    "start": "npm-run-all --parallel serve watch",
+    "start": "run-p watch serve",
     "serve": "reload -bd docs",
     "watch": "rollup --watch --input src/index.js -mco docs/build.js"
   },

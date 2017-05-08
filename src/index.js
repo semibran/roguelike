@@ -1,272 +1,213 @@
-import { Dungeon, World, Entity, Item, Cell, Rect, RNG, Colors } from './utils/index'
+import { Game, Display, Cell, World } from './utils/index'
 
-const DISPLAY_SIZE = 25
-const WORLD_SIZE = DISPLAY_SIZE
-const { FLOOR, WALL, DOOR, DOOR_OPEN, DOOR_HIDDEN, STAIRS, TRAP } = World
-const { RED, MAROON, YELLOW, OLIVE, LIME, GREEN, CYAN, TEAL, BLUE, NAVY, MAGENTA, PURPLE, WHITE, GRAY, BLACK } = Colors
+const WORLD_SIZE = 25
+
+const { LEFT, UP, RIGHT, DOWN } = Cell.directions
+const { ENTRANCE, EXIT } = World.tileIds
+
+const BLACK  = [  0,   0,   0]
+const GRAY   = [128, 128, 128]
+const SILVER = [192, 192, 192]
+const WHITE  = [255, 255, 255]
+
+const RED    = [255,   0,   0]
+const MAROON = [128,   0,   0]
+
+const YELLOW = [255, 255,   0]
+const OLIVE  = [128, 128,   0]
+
+const LIME   = [  0, 255,   0]
+const GREEN  = [  0, 128,   0]
+
+const BLUE   = [  0,   0, 255]
+const NAVY   = [  0,   0, 128]
+
+function darken(color) {
+  switch (color) {
+    case BLACK:  return BLACK
+    case GRAY:   return GRAY
+    case SILVER: return GRAY
+    case WHITE:  return GRAY
+    case RED:    return MAROON
+    case MAROON: return MAROON
+    case YELLOW: return OLIVE
+    case OLIVE:  return OLIVE
+    case LIME:   return GREEN
+    case GREEN:  return GREEN
+    case BLUE:   return NAVY
+    case NAVY:   return NAVY
+  }
+  return null
+}
+
+function lighten(color) {
+  switch (color) {
+    case BLACK:  return GRAY
+    case GRAY:   return SILVER
+    case SILVER: return WHITE
+    case WHITE:  return WHITE
+    case RED:    return RED
+    case MAROON: return RED
+    case YELLOW: return YELLOW
+    case OLIVE:  return YELLOW
+    case LIME:   return LIME
+    case GREEN:  return LIME
+    case BLUE:   return BLUE
+    case NAVY:   return BLUE
+  }
+  return null
+}
 
 const sprites = {
+  floor:      BLACK,
+  wall:       WHITE,
+  door:       YELLOW,
+  doorOpen:   OLIVE,
+  doorSecret: WHITE,
+  entrance:   GRAY,
+  exit:       GREEN,
+  human:      LIME,
+  beast:      RED,
+  item:       BLUE,
+  corpse:     MAROON
+}
 
-  // Tiles
-  floor:       [String.fromCharCode(183), TEAL],
-  wall:        ['#', OLIVE],
-  door:        ['+', MAROON],
-  door_open:   ['/', MAROON],
-  door_secret: ['#', OLIVE],
-  stairs:      ['>', WHITE],
-  trap:        ['^', MAGENTA],
+let game = Game.create(WORLD_SIZE)
+let display = Display.create(WORLD_SIZE).mount('#app')
 
-  // Entities
-  human:       ['@', WHITE],
-  wyrm:        ['w', LIME],
-  slime:       ['j', BLUE],
+console.log(game.rng.seed())
 
-  // Items
-  gold:        ['$', YELLOW],
-  silver:      ['$', WHITE],
-  copper:      ['$', MAROON]
+game
+  .on(['start', 'tick'], render)
+
+  .on('move', actor => {
+    if (actor === game.hero)
+      if (path)
+        window.requestAnimationFrame(step)
+  })
+
+  .on('move-fail', actor => {
+    if (actor === game.hero)
+      if (path)
+        path = null
+  })
+
+  .on('open', actor => {
+    if (actor === game.hero)
+      interrupted = true, path = null
+  })
+
+  .start()
+
+let inputDirections = {
+
+  KeyW:    UP,
+  ArrowUp: UP,
+
+  KeyA:      LEFT,
+  ArrowLeft: LEFT,
+
+  KeyS:      DOWN,
+  ArrowDown: DOWN,
+
+  KeyD:       RIGHT,
+  ArrowRight: RIGHT
 
 }
 
-let floors = []
-let floor  = 1
-
-// Use `RNG.create(seed)` to seed the RNG, where `seed` is some
-// number like `7255.9743678451105`. Seeding the RNG allows you
-// to achieve the same dungeon multiple times for debugging.
-//
-// Leave empty for a random seed.
-//
-const rng = RNG.create()
-
-const attacks = ['bash', 'whack', 'mangle', 'tear apart', 'bite']
-
-// TODO: Change these to key/value pairs with data on each enemy
-const enemies = ['wyrm', 'slime']
-function spawnEnemies(world) {
-  let i = 10
-  while (i--) {
-    let kind = rng.choose(enemies)
-    let options = { entityType: 'enemy', kind }
-    let enemy = Entity.create(options)
-    world.spawn(enemy)
-  }
-}
-
-const money = {
-  copper: {
-    range: [4, 16]
-  },
-  silver: {
-    range: [32, 128],
-    chance: 0.10
-  },
-  gold: {
-    range: [256, 1024],
-    chance: 0.01
-  }
-}
-function spawnMoney(world) {
-
-  let i = 10
-
-  while (i--) {
-
-    let num = rng.get(100) + 1
-    let lowest = 1
-    let rarest = null
-    for (let kind in money) {
-      let { range, chance } = money[kind]
-      if (!chance)
-        chance = 1
-      if (chance <= lowest && num <= chance * 100) {
-        lowest = chance
-        rarest = kind
-      }
-    }
-
-    let kind  = rarest
-    let value = rng.get(money[kind].range)
-
-    let options = { itemType: 'money', kind, value }
-    let item = Item.create(options)
-
-    world.spawn(item)
-
-  }
-
-}
-
-function generate() {
-  let world = Dungeon.create(WORLD_SIZE, rng)
-  let hero = Entity.create( { entityType: 'hero', kind: 'human' } )
-  world.spawn(hero)
-  world.spawn(STAIRS, 'center')
-  world.spawn(TRAP)
-  spawnEnemies(world)
-  spawnMoney(world)
-  for (let entity of world.entities)
-    entity.look()
-  return {world, hero}
-}
-
-new Vue({
-  el: '#app',
-  data: function () {
-    let { world, hero } = generate()
-    let log = []
-
-    if (world.rooms.secret.size)
-      log.push('Something feels off about this dungeon...')
-    else
-      log.push(`Oh boy, a dungeon! Let's see what kinds of treasure we can find.`)
-
-    world.on('door-opened', (entity, cell, secret) => {
-      if (entity === hero)
-        if (!secret)
-          log.push('You open the door.')
-        else
-          log.push('You find a secret room!')
-    })
-
-    world.on('move', (entity, cell) => {
-      if (entity === hero)
-        if (world.getAt(cell) === STAIRS)
-          log.push(`There's a set of stairs going down here.`)
-    })
-
-    world.on('attack', (entity, other) => {
-      let attack = rng.choose(attacks)
-      if (entity === hero)
-        log.push(`You ${attack} the ${other.kind}!`)
-    })
-
-    world.on('item', (entity, item) => {
-      if (entity === hero)
-        if (item.itemType === 'money')
-          log.push(`Found ${item.value} gold.`)
-    })
-
-    return { world, hero, log, debug: false }
-  },
-  methods: {
-    onclick: function (target) {
-      let {world, hero, debug, log} = this
-      let cell = hero.cell
-
-      if ( Cell.isEqual(cell, target) ) {
-        if (world.getAt(cell) === STAIRS) {
-          log.push(`You head downstairs.`)
-          this.descend()
-        }
-        return
-      }
-
-      if ( !hero.known[target] && !debug )
-        return
-
-      function move() {
-        let moved = hero.moveTo(target)
-        if (moved)
-          window.requestAnimationFrame(move)
-      }
-      move()
-
-    },
-    ascend: function () {
-
-    },
-    descend: function () {
-      let log = this.log
-      let { world, hero } = generate()
-
-      if (world.rooms.secret.size)
-        log.push('Something feels off about this dungeon...')
-
-      world.on('door-opened', (entity, cell, secret) => {
-        if (entity === hero)
-          if (!secret)
-            log.push('You open the door.')
-          else
-            log.push('You find a secret room!')
-      })
-
-      world.on('move', (entity, cell) => {
-        if (entity === hero)
-          if (world.getAt(cell) === STAIRS)
-            log.push(`There's a set of stairs going down here.`)
-      })
-
-      world.on('attack', (entity, other) => {
-        let attack = rng.choose(attacks)
-        let punctuation = rng.choose( ['.', '!'] )
-        if (entity === hero)
-          log.push(`You ${attack} the ${other.kind}${punctuation}`)
-      })
-
-      world.on('item', (entity, item) => {
-        if (entity === hero)
-          if (item.itemType === 'money')
-            log.push(`Found ${item.value} gold.`)
-      })
-
-      this.world = world
-      this.hero  = hero
-    }
-  },
-  computed: {
-    view: function () {
-      let {world, hero, debug} = this
-      let view = []
-      world.data.forEach((id, index) => {
-        let cell, [cellX, cellY] = cell = Cell.fromIndex(index, WORLD_SIZE)
-        let type = hero.known[cell]
-        let char = ' ', color
-        if (!type && debug)
-          type = world.getTileAt(cell).name
-        if (type) {
-          if ( !(type in sprites) ) {
-            throw new TypeError('Unrecognized sprite: ' + type)
-          }
-          [char, color] = sprites[type]
-          if ( !hero.seeing[cell] )
-            color = GRAY
-          if ( Array.isArray(color) )
-            color = `rgb(${color.join(', ')})`
-        }
-        // Outside brackets = all tiles are appended to the view
-        //  Inside brackets = only tiles that are needed are appended
-        let style = {
-          color,
-          // left: cellX + 'em',
-          // top:  cellY + 'em'
-        }
-        let sprite = { char, style, cell }
-        view.push(sprite)
-      })
-      return view
-    }
-  },
-  mounted: function () {
-    let vue = this
-    vue.$el.style.fontSize = `calc(100vmin / ${WORLD_SIZE})`
-    function handleKeys(event) {
-      let flag = event.type === 'keydown'
-      if (event.code === 'Space' && vue.debug !== flag) {
-        vue.debug = flag
-      }
-    }
-    window.addEventListener('keydown', handleKeys)
-    window.addEventListener('keyup',   handleKeys)
-  },
-  components: {
-    game: {
-      template: '#game-template',
-      props: ['view', 'onclick']
-    },
-    log: {
-      template: '#log-template',
-      props: ['view']
-    }
+let interrupted = false // Door hack
+window.addEventListener('keydown', event => {
+  let { key, code } = event
+  if (!interrupted && !path) {
+    let direction = inputDirections[code]
+    if (direction)
+      game.input('move', direction)
+    else if (key === 'c')
+      game.input('close')
+    else if (code === 'Space')
+      game.input('wait')
+    else if (key === '>')
+      game.input('descend')
+    else if (key === '<')
+      game.input('ascend')
+    else if (key === 'r')
+      game.start()
   }
 })
+
+window.addEventListener('keyup', event => {
+  interrupted = false
+})
+
+let canvas = display.context.canvas
+let mouse = null
+canvas.addEventListener('mousemove', event => {
+  let { width, height } = canvas.getBoundingClientRect()
+  let { offsetX, offsetY } = event
+  mouse = [offsetX / width * canvas.width, offsetY / height * canvas.height].map(Math.floor)
+  render(mouse)
+})
+
+let path = null
+canvas.addEventListener('click', event => {
+  if (!mouse)
+    return
+  if (path) {
+    path = null
+    return
+  }
+  let { world, cell, known } = game.hero
+  if (Cell.isEqual(cell, mouse)) {
+    let id = world.getAt(cell)
+    if (id === ENTRANCE)
+      game.input('ascend')
+    else if (id === EXIT)
+      game.input('descend')
+    return
+  }
+  let cells = {}
+  world.data.forEach((id, index) => {
+    let cell = Cell.fromIndex(index, world.size)
+    if (!known[game.floor][cell])
+      cells[cell] = Infinity
+  })
+  path = world.findPath(cell, mouse, { cells })
+  if (path)
+    step()
+})
+
+canvas.addEventListener('mouseout', event => {
+  mouse = null
+})
+
+function getView(actor) {
+  let view = {}
+  let { known, seeing } = actor
+  known = known[game.floor]
+  let cells = Object.keys(known).map(Cell.fromString)
+  for (let cell of cells) {
+    let name = known[cell]
+    let color = sprites[name]
+    if (!(cell in seeing))
+      color = darken(color)
+    view[cell] = color
+  }
+  return view
+}
+
+function render() {
+  let view = getView(game.hero)
+  if (mouse)
+    view[mouse] = lighten(view[mouse])
+  display.render(view)
+}
+
+function step() {
+  let step = game.hero.world.findStep(path, game.hero.cell)
+  if (!step) {
+    path = null
+    return false
+  }
+  game.input('move', step)
+  return true
+}

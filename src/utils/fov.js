@@ -1,19 +1,19 @@
-import { Cell, World } from './index'
+import { Cell } from './index'
 
 export default { get }
 
-function get(data, start, range) {
+function get(world, start, range) {
   let cells = []
   let i = 8
   while (i--)
-    cells = cells.concat( getOctant(data, start, range, i) )
+    cells = cells.concat(getOctant(world, start, range, i))
   cells.push(start)
   return cells
 }
 
-function getOctant(data, start, range, octant) {
+function getOctant(world, start, range, octant) {
   range = range || Infinity
-  let size = World.getSize(data)
+  let size = world.size
   let [x, y] = start
   let cells = []
   let shadows = []
@@ -21,20 +21,19 @@ function getOctant(data, start, range, octant) {
   for (let row = 1; row <= range; row++) {
     let [transformX, transformY] = transformOctant(row, 0, octant)
     let cell = [x + transformX, y + transformY]
-    if ( !Cell.isInside(cell, size) )
+    if (!Cell.isInside(cell, size))
       break
     for (let col = 0; col <= row; col++) {
       let [transformX, transformY] = transformOctant(row, col, octant)
       let cell = [x + transformX, y + transformY]
-      if ( !Cell.isInside(cell, size) || transformX * transformX + transformY * transformY > range * range )
+      if (!Cell.isInside(cell, size) || transformX * transformX + transformY * transformY > range * range)
         break
       if (!fullShadow) {
         let projection = getProjection(row, col)
-        let visible = !shadows.find( shadow => shadow.start <= projection.start && shadow.end >= projection.end )
+        let visible = !shadows.find(shadow => shadow.start <= projection.start && shadow.end >= projection.end)
         if (visible) {
           cells.push(cell)
-          let id = World.getAt(data, cell)
-          if ( World.tiles[id].opaque ) {
+          if (world.tileAt(cell).opaque) {
             let index
             for (index = 0; index < shadows.length; index++)
               if (shadows[index].start >= projection.start)
@@ -65,7 +64,7 @@ function getOctant(data, start, range, octant) {
 }
 
 function getProjection(row, col) {
-  let start = col / (row + 2)
+  let start =  col      / (row + 2)
   let end   = (col + 1) / (row + 1)
   return {start, end}
 }

@@ -4,90 +4,25 @@ html, body {
 
 body {
   margin: 0;
-  background: black;
+  background: #222;
   display: flex;
   overflow: hidden;
 }
 
 #app {
-  position: relative;
   width: 100vmin;
   height: 100vmin;
   margin: auto;
-  color: white;
-  font-family: 'Cutive Mono', monospace;
-  -webkit-user-select: none;
-  user-select: none;
 }
 
-#app .view {
-  position: relative;
-  display: flex;
-  flex-flow: wrap;
-}
-
-.sprite {
-  /*position: absolute;*/
-  color: white;
-}
-
-.log {
+canvas {
   width: 100%;
-  bottom: 0;
-  left: 0;
-  background: rgba(0, 0, 0, 0.5);
-  position: absolute;
-  display: flex;
-  flex-direction: column;
-  justify-content: flex-end;
-  pointer-events: none;
-  overflow: hidden;
-  height: calc(5em / 2 * 1.5);
-}
-
-.messages {
-  list-style: none;
-  font-size: 0.5em;
-  padding: 1em 5%;
-  margin: 0;
-}
-
-.message {
-  display: flex;
-  align-items: center;
-  overflow: hidden;
-  position: relative;
-  line-height: 1.5;
-}
-
-.message .text {
-  white-space: nowrap;
-}
-
-.reveal-enter-active, .reveal-leave-active {
-  transition: margin-right 2s 0.1s linear;
-}
-
-.reveal-enter, .reveal-leave-active {
-  margin-right: 100%;
-}
-
-.reveal-move {
-  transition: transform 0.5s;
-}
-
-.sprite {
-  width: 1em;
-  height: 1em;
-  text-align: center;
-  line-height: 1;
-  cursor: none;
-}
-
-.sprite:hover {
-  background: rgba(255, 255, 255, 0.2);
-}
-
-.sprite:active {
-  background: rgba(255, 255, 255, 0.4);
+  height: 100%;
+  image-rendering: optimizeSpeed;
+  image-rendering: -moz-crisp-edges;
+  image-rendering: -webkit-optimize-contrast;
+  image-rendering: -o-crisp-edges;
+  image-rendering: crisp-edges;
+  image-rendering: pixelated;
+  -ms-interpolation-mode: nearest-neighbor;
 }
